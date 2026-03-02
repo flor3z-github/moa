@@ -1,4 +1,4 @@
-import yahooFinance from 'yahoo-finance2';
+import YahooFinance from 'yahoo-finance2';
 import { StockProvider } from '../provider';
 import { StockQuote, StockTarget } from '../types';
 
@@ -12,11 +12,12 @@ export class YahooProvider implements StockProvider {
 
   async fetchQuotes(targets: StockTarget[]): Promise<StockQuote[]> {
     const results: StockQuote[] = [];
+    const yf = new YahooFinance();
 
     for (const target of targets) {
       try {
         const yahooSymbol = `${target.symbol}${MARKET_SUFFIX[target.market]}`;
-        const quote = await yahooFinance.quote(yahooSymbol);
+        const quote = await yf.quote(yahooSymbol);
 
         results.push({
           symbol: target.symbol,
