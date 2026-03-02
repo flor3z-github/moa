@@ -8,6 +8,12 @@ export async function GET(request: Request) {
   try {
     const supabase = createServerClient();
 
+    // 등록된 종목 목록
+    const { data: targets } = await supabase
+      .from('stock_targets')
+      .select('symbol, name, market')
+      .order('created_at', { ascending: true });
+
     // 최근 N일간 주가 데이터
     const { data, error } = await supabase
       .from('stock_prices')
@@ -30,7 +36,38 @@ export async function GET(request: Request) {
     }
 
     // 최신 데이터 (종목별 가장 최근 1건)
-    const latest = Object.entries(grouped).map(([symbol, rows]) => rows[0]);
+    // 가격 데이터가 있는 종목은 그대로, 없는 종목은 등록 정보로 placeholder 생성
+    const latest: any[] = [];
+    const registeredSymbols = (targets ?? []).map((t: any) => t.symbol);
+
+    for (const t of targets ?? []) {
+      if (grouped[t.symbol]?.length > 0) {
+        latest.push(grouped[t.symbol][0]);
+      } else {
+        latest.push({
+          id: null,
+          symbol: t.symbol,
+          name: t.name,
+          price: 0,
+          open: null,
+          high: null,
+          low: null,
+          close: 0,
+          volume: 0,
+          change_percent: null,
+          traded_at: null,
+          provider: null,
+          fetched_at: null,
+        });
+      }
+    }
+
+    // stock_targets에 없지만 stock_prices에 데이터가 있는 종목도 포함
+    for (const [symbol, rows] of Object.entries(grouped)) {
+      if (!registeredSymbols.includes(symbol)) {
+        latest.push(rows[0]);
+      }
+    }
 
     return NextResponse.json({ latest, history: grouped });
   } catch (err: any) {

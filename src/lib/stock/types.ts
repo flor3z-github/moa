@@ -12,9 +12,12 @@ export interface StockQuote {
 }
 
 export interface StockTarget {
+  id?: number;
   symbol: string;
   name: string;
   market: 'KOSPI' | 'KOSDAQ';
+  initial_investment?: number | null;
+  initial_price?: number | null;
 }
 
 export const STOCK_TARGETS: StockTarget[] = [

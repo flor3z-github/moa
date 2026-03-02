@@ -32,6 +32,31 @@ CREATE POLICY "stock_prices_read" ON stock_prices
 CREATE POLICY "stock_prices_insert" ON stock_prices
   FOR INSERT WITH CHECK (true);
 
+-- 종목 관리 테이블
+CREATE TABLE IF NOT EXISTS stock_targets (
+  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  symbol text NOT NULL UNIQUE,
+  name text NOT NULL,
+  market text NOT NULL CHECK (market IN ('KOSPI', 'KOSDAQ')),
+  initial_investment numeric,
+  initial_price numeric,
+  created_at timestamptz DEFAULT now()
+);
+
+ALTER TABLE stock_targets ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "stock_targets_read" ON stock_targets
+  FOR SELECT USING (true);
+
+CREATE POLICY "stock_targets_insert" ON stock_targets
+  FOR INSERT WITH CHECK (true);
+
+CREATE POLICY "stock_targets_update" ON stock_targets
+  FOR UPDATE USING (true);
+
+CREATE POLICY "stock_targets_delete" ON stock_targets
+  FOR DELETE USING (true);
+
 -- ============================================
 -- 추후 확장용 (지금은 실행하지 않아도 됨)
 -- ============================================

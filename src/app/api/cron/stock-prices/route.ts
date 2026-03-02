@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/db';
-import { createStockProvider, STOCK_TARGETS, ProviderType } from '@/lib/stock';
+import { createStockProvider, ProviderType } from '@/lib/stock';
+import type { StockTarget } from '@/lib/stock';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -17,7 +18,21 @@ export async function GET(request: Request) {
     const providerType = (process.env.STOCK_PROVIDER ?? 'yahoo') as ProviderType;
     const provider = createStockProvider(providerType);
 
-    const quotes = await provider.fetchQuotes(STOCK_TARGETS);
+    // DB에서 등록된 종목만 조회
+    const { data: dbTargets } = await supabase
+      .from('stock_targets')
+      .select('symbol, name, market');
+
+    const targets = (dbTargets ?? []) as StockTarget[];
+
+    if (targets.length === 0) {
+      return NextResponse.json({
+        success: false,
+        message: '등록된 종목이 없습니다.',
+      });
+    }
+
+    const quotes = await provider.fetchQuotes(targets);
 
     if (quotes.length === 0) {
       return NextResponse.json({
