@@ -24,6 +24,7 @@ export interface StockTargetMeta {
   hasTransactions: boolean;
   totalInvested: number;
   totalShares: number;
+  firstTransactedAt: string | null;
 }
 
 export function useStocks(days = 30) {

@@ -17,13 +17,17 @@ export async function GET(request: Request) {
     // 거래 내역 조회 (종목별 투자 요약)
     const { data: txRows } = await supabase
       .from('stock_transactions')
-      .select('symbol, amount, quantity');
+      .select('symbol, amount, quantity, transacted_at');
 
-    const txSummary: Record<string, { totalInvested: number; totalShares: number }> = {};
+    const txSummary: Record<string, { totalInvested: number; totalShares: number; firstTransactedAt: string | null }> = {};
     for (const tx of txRows ?? []) {
-      if (!txSummary[tx.symbol]) txSummary[tx.symbol] = { totalInvested: 0, totalShares: 0 };
+      if (!txSummary[tx.symbol]) txSummary[tx.symbol] = { totalInvested: 0, totalShares: 0, firstTransactedAt: null };
       txSummary[tx.symbol].totalInvested += Number(tx.amount);
       txSummary[tx.symbol].totalShares += Number(tx.quantity);
+      const d = tx.transacted_at as string;
+      if (!txSummary[tx.symbol].firstTransactedAt || d < txSummary[tx.symbol].firstTransactedAt!) {
+        txSummary[tx.symbol].firstTransactedAt = d;
+      }
     }
 
     // 최근 N일간 주가 데이터
@@ -79,6 +83,7 @@ export async function GET(request: Request) {
       hasTransactions: !!txSummary[t.symbol],
       totalInvested: txSummary[t.symbol]?.totalInvested ?? 0,
       totalShares: txSummary[t.symbol]?.totalShares ?? 0,
+      firstTransactedAt: txSummary[t.symbol]?.firstTransactedAt ?? null,
     }));
 
     return NextResponse.json({ latest, history: grouped, targets: targetsMeta });

@@ -9,6 +9,10 @@ const MonthlyReturnChart = dynamic(() => import('./MonthlyReturnChart'), {
   ssr: false,
 });
 
+const WeeklyReturnChart = dynamic(() => import('./WeeklyReturnChart'), {
+  ssr: false,
+});
+
 interface StockCardProps {
   stock: StockPrice;
   history?: StockPrice[];
@@ -16,6 +20,19 @@ interface StockCardProps {
   hasTransactions?: boolean;
   totalInvested?: number;
   totalShares?: number;
+  firstTransactedAt?: string | null;
+}
+
+type ChartMode = 'monthly' | 'weekly' | 'insufficient';
+
+function getChartMode(firstTransactedAt: string | null): ChartMode {
+  if (!firstTransactedAt) return 'insufficient';
+  const now = Date.now();
+  const first = new Date(firstTransactedAt).getTime();
+  const daysSince = (now - first) / (1000 * 60 * 60 * 24);
+  if (daysSince >= 30) return 'monthly';
+  if (daysSince >= 7) return 'weekly';
+  return 'insufficient';
 }
 
 function formatPrice(price: number) {
@@ -29,7 +46,7 @@ function formatKRW(value: number) {
   return formatPrice(value);
 }
 
-export default function StockCard({ stock, history, index, hasTransactions, totalInvested = 0, totalShares = 0 }: StockCardProps) {
+export default function StockCard({ stock, history, index, hasTransactions, totalInvested = 0, totalShares = 0, firstTransactedAt = null }: StockCardProps) {
   const [expanded, setExpanded] = useState(false);
   const pending = !stock.fetched_at;
   const canExpand = !pending && !!hasTransactions;
@@ -170,12 +187,21 @@ export default function StockCard({ stock, history, index, hasTransactions, tota
           </button>
         )}
 
-        {/* Monthly return chart */}
-        {canExpand && expanded && (
-          <div className="animate-fade-in mt-2 border-t border-glass-border pt-3">
-            <MonthlyReturnChart symbol={stock.symbol} />
-          </div>
-        )}
+        {/* Period-based return chart */}
+        {canExpand && expanded && (() => {
+          const chartMode = getChartMode(firstTransactedAt ?? null);
+          return (
+            <div className="animate-fade-in mt-2 border-t border-glass-border pt-3">
+              {chartMode === 'monthly' && <MonthlyReturnChart symbol={stock.symbol} />}
+              {chartMode === 'weekly' && <WeeklyReturnChart symbol={stock.symbol} />}
+              {chartMode === 'insufficient' && (
+                <div className="py-4 text-center text-xs text-text-muted">
+                  데이터 수집이 더 필요합니다
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

@@ -55,6 +55,7 @@ export default function StockGrid({ latest, history, targets, loading, error, on
                 hasTransactions={target?.hasTransactions}
                 totalInvested={target?.totalInvested ?? 0}
                 totalShares={target?.totalShares ?? 0}
+                firstTransactedAt={target?.firstTransactedAt ?? null}
               />
             );
           })}

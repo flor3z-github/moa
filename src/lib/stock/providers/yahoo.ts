@@ -101,6 +101,47 @@ export class YahooProvider implements StockProvider {
   }
 }
 
+export async function fetchDailyPrice(
+  symbol: string,
+  market: string,
+  date: string // YYYY-MM-DD
+): Promise<{ close: number; tradedAt: string } | null> {
+  const yahooSymbol = `${symbol}${MARKET_SUFFIX[market]}`;
+  const target = new Date(date);
+  const from = new Date(target.getTime() - 5 * 24 * 60 * 60 * 1000);
+  const to = new Date(target.getTime() + 2 * 24 * 60 * 60 * 1000);
+  const period1 = Math.floor(from.getTime() / 1000);
+  const period2 = Math.floor(to.getTime() / 1000);
+  const url = `${CHART_API}/${yahooSymbol}?interval=1d&period1=${period1}&period2=${period2}`;
+
+  const res = await fetch(url, {
+    headers: { 'User-Agent': 'Mozilla/5.0' },
+  });
+  if (!res.ok) return null;
+
+  const data = await res.json();
+  const chart = data.chart?.result?.[0];
+  if (!chart) return null;
+
+  const usdKrw = US_MARKETS.has(market) ? await fetchUsdKrwRate() : null;
+  const rate = usdKrw ?? 1;
+
+  const timestamps: number[] = chart.timestamp ?? [];
+  const closes: (number | null)[] = chart.indicators?.quote?.[0]?.close ?? [];
+
+  // date 이하인 가장 가까운 날짜의 종가 사용
+  let bestIdx = -1;
+  for (let i = 0; i < timestamps.length; i++) {
+    if (closes[i] == null) continue;
+    const d = new Date(timestamps[i] * 1000).toISOString().split('T')[0];
+    if (d <= date) bestIdx = i;
+  }
+  if (bestIdx < 0) return null;
+
+  const tradedAt = new Date(timestamps[bestIdx] * 1000).toISOString().split('T')[0];
+  return { close: Math.round(closes[bestIdx]! * rate), tradedAt };
+}
+
 export async function fetchMonthlyHistory(
   symbol: string,
   market: string,
