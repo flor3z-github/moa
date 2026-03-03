@@ -159,7 +159,7 @@ export default function StockCard({ stock, history, index, hasTransactions, tota
           <div className="mt-3 grid grid-cols-2 gap-2 border-t border-glass-border pt-3">
             <div>
               <div className="text-[10px] text-text-muted">투자 원금</div>
-              <div className="mt-0.5 text-xs text-text-secondary">{formatPrice(totalInvested)}</div>
+              <div className="mt-0.5 text-xs text-text-secondary">{formatPrice(totalInvested)}원</div>
             </div>
             <div>
               <div className="text-[10px] text-text-muted">보유 수량</div>
