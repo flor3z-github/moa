@@ -1,19 +1,19 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 
 type Theme = 'dark' | 'light';
 
 const STORAGE_KEY = 'moa-theme';
 
-export function useTheme() {
-  const [theme, setTheme] = useState<Theme>('dark');
+function getInitialTheme(): Theme {
+  if (typeof window === 'undefined') return 'dark';
+  const stored = localStorage.getItem(STORAGE_KEY) as Theme | null;
+  return stored ?? (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+}
 
-  useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY) as Theme | null;
-    const initial = stored ?? (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
-    setTheme(initial);
-  }, []);
+export function useTheme() {
+  const [theme, setTheme] = useState<Theme>(getInitialTheme);
 
   const toggle = useCallback(() => {
     setTheme((prev) => {
