@@ -67,6 +67,7 @@ export async function GET(
       const c = cachedMap.get(ym);
       if (!c) return true;
       if (ym === currentYM) {
+        if (!c.fetched_at) return true;
         const age = Date.now() - new Date(c.fetched_at).getTime();
         return age > 24 * 60 * 60 * 1000;
       }
