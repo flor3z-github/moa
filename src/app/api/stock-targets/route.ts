@@ -13,8 +13,9 @@ export async function GET() {
 
     if (error) throw error;
     return NextResponse.json(data);
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -89,7 +90,8 @@ export async function POST(request: Request) {
     fetchPriceInBackground();
 
     return NextResponse.json(data, { status: 201 });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

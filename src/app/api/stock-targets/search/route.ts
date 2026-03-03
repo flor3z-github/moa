@@ -67,8 +67,9 @@ export async function GET(request: Request) {
       .slice(0, 10);
 
     return NextResponse.json(stocks);
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('[stock-targets/search]', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

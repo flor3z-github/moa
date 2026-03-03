@@ -52,7 +52,20 @@ export default function StockCard({ stock, history, index, hasTransactions, tota
   const canExpand = !pending && !!hasTransactions;
   const isPositive = stock.change_percent !== null && stock.change_percent > 0;
   const isNegative = stock.change_percent !== null && stock.change_percent < 0;
-  const accentColor = pending ? 'var(--text-muted)' : isPositive ? 'var(--positive)' : isNegative ? 'var(--negative)' : 'var(--accent)';
+
+  // Portfolio calculations (hoisted for use in top-right display and accent color)
+  const hasPortfolio = !!hasTransactions && totalInvested > 0 && totalShares > 0;
+  const currentValue = hasPortfolio ? Math.round(stock.price * totalShares) : 0;
+  const profitLoss = currentValue - totalInvested;
+  const returnPct = totalInvested > 0 ? (profitLoss / totalInvested) * 100 : 0;
+  const isProfitPositive = profitLoss > 0;
+  const isProfitNegative = profitLoss < 0;
+
+  const accentColor = pending
+    ? 'var(--text-muted)'
+    : hasPortfolio
+      ? isProfitPositive ? 'var(--positive)' : isProfitNegative ? 'var(--negative)' : 'var(--accent)'
+      : isPositive ? 'var(--positive)' : isNegative ? 'var(--negative)' : 'var(--accent)';
 
   // Extract close prices for sparkline (oldest first)
   const sparkPrices = history
@@ -92,6 +105,21 @@ export default function StockCard({ stock, history, index, hasTransactions, tota
           <div className="text-right">
             {pending ? (
               <span className="text-xs text-text-muted">수집 대기 중</span>
+            ) : hasPortfolio ? (
+              <>
+                <div className="text-lg font-bold text-text-primary">
+                  {formatPrice(currentValue)}원
+                </div>
+                <span
+                  className="inline-block rounded-full px-2 py-0.5 text-xs font-semibold"
+                  style={{
+                    background: isProfitPositive ? 'var(--positive-bg)' : isProfitNegative ? 'var(--negative-bg)' : 'var(--glass-surface)',
+                    color: isProfitPositive ? 'var(--positive)' : isProfitNegative ? 'var(--negative)' : 'var(--text-secondary)',
+                  }}
+                >
+                  {isProfitPositive ? '+' : ''}{formatPrice(profitLoss)} ({isProfitPositive ? '+' : ''}{returnPct.toFixed(1)}%)
+                </span>
+              </>
             ) : (
               <>
                 <div className="text-lg font-bold text-text-primary">
@@ -127,39 +155,18 @@ export default function StockCard({ stock, history, index, hasTransactions, tota
         )}
 
         {/* Investment summary */}
-        {!pending && hasTransactions && totalInvested > 0 && (() => {
-          const currentValue = Math.round(stock.price * totalShares);
-          const profitLoss = currentValue - totalInvested;
-          const returnPct = (profitLoss / totalInvested) * 100;
-          const isProfitPositive = profitLoss > 0;
-          const isProfitNegative = profitLoss < 0;
-          return (
-            <div className="mt-3 grid grid-cols-3 gap-2 border-t border-glass-border pt-3">
-              <div>
-                <div className="text-[10px] text-text-muted">투자금</div>
-                <div className="mt-0.5 text-xs text-text-secondary">{formatKRW(totalInvested)}</div>
-              </div>
-              <div>
-                <div className="text-[10px] text-text-muted">수익률</div>
-                <div
-                  className="mt-0.5 text-xs font-semibold"
-                  style={{ color: isProfitPositive ? 'var(--positive)' : isProfitNegative ? 'var(--negative)' : 'var(--text-secondary)' }}
-                >
-                  {isProfitPositive ? '+' : ''}{returnPct.toFixed(1)}%
-                </div>
-              </div>
-              <div>
-                <div className="text-[10px] text-text-muted">평가금</div>
-                <div
-                  className="mt-0.5 text-xs font-semibold"
-                  style={{ color: isProfitPositive ? 'var(--positive)' : isProfitNegative ? 'var(--negative)' : 'var(--text-secondary)' }}
-                >
-                  {formatKRW(currentValue)}
-                </div>
-              </div>
+        {!pending && hasPortfolio && (
+          <div className="mt-3 grid grid-cols-2 gap-2 border-t border-glass-border pt-3">
+            <div>
+              <div className="text-[10px] text-text-muted">투자 원금</div>
+              <div className="mt-0.5 text-xs text-text-secondary">{formatPrice(totalInvested)}원</div>
             </div>
-          );
-        })()}
+            <div>
+              <div className="text-[10px] text-text-muted">보유 수량</div>
+              <div className="mt-0.5 text-xs text-text-secondary">{formatPrice(totalShares)}주</div>
+            </div>
+          </div>
+        )}
 
         {/* Monthly return expand toggle */}
         {canExpand && (

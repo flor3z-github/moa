@@ -56,7 +56,7 @@ export async function POST(request: Request) {
       .lte('year_month', endMonth);
 
     const cachedMap = new Map(
-      (cached ?? []).map((r: any) => [r.year_month, r])
+      (cached ?? []).map((r: { year_month: string; close_price: number; traded_at: string }) => [r.year_month, r])
     );
 
     // 빠진 월 확인
@@ -99,7 +99,7 @@ export async function POST(request: Request) {
     }
 
     // 거래 생성
-    const transactions: any[] = [];
+    const transactions: { symbol: string; type: string; amount: number; price: number; quantity: number; transacted_at: string; source: string }[] = [];
     const skipped: string[] = [];
 
     for (const ym of months) {
@@ -126,7 +126,7 @@ export async function POST(request: Request) {
       });
     }
 
-    let created: any[] = [];
+    let created: Record<string, unknown>[] = [];
     if (transactions.length > 0) {
       const { data, error } = await supabase
         .from('stock_transactions')
@@ -138,8 +138,9 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ data: created, skipped }, { status: 201 });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('[dca] 실패:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

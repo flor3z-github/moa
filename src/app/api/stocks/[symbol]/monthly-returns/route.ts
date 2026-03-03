@@ -60,7 +60,7 @@ export async function GET(
       .order('year_month', { ascending: true });
 
     const cachedMap = new Map(
-      (cached ?? []).map((r: any) => [r.year_month, r])
+      (cached ?? []).map((r: { year_month: string; close_price: number; traded_at: string; fetched_at?: string }) => [r.year_month, r])
     );
 
     // 빠진 월 확인 + 당월 갱신
@@ -69,6 +69,7 @@ export async function GET(
       const c = cachedMap.get(ym);
       if (!c) return true;
       if (ym === currentYM) {
+        if (!c.fetched_at) return true;
         const age = Date.now() - new Date(c.fetched_at).getTime();
         return age > 24 * 60 * 60 * 1000;
       }
@@ -120,7 +121,7 @@ export async function GET(
     for (const ym of months) {
       // 해당 월의 거래 누적
       const monthTxs = transactions.filter(
-        (t: any) => t.transacted_at.slice(0, 7) === ym
+        (t: { transacted_at: string }) => t.transacted_at.slice(0, 7) === ym
       );
       for (const tx of monthTxs) {
         cumulativeShares += Number(tx.quantity);
@@ -153,8 +154,9 @@ export async function GET(
         'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=7200',
       },
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('[monthly-returns] 실패:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

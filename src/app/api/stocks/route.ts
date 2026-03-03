@@ -47,7 +47,7 @@ export async function GET(request: Request) {
     }
 
     // 종목별로 그룹핑
-    const grouped: Record<string, any[]> = {};
+    const grouped: Record<string, Record<string, unknown>[]> = {};
     for (const row of data ?? []) {
       if (!grouped[row.symbol]) grouped[row.symbol] = [];
       grouped[row.symbol].push(row);
@@ -55,7 +55,8 @@ export async function GET(request: Request) {
 
     // 최신 데이터 (종목별 가장 최근 1건)
     // 가격 데이터가 있는 종목은 그대로, 없는 종목은 등록 정보로 placeholder 생성
-    const latest: any[] = [];
+    const latest: Record<string, unknown>[] = [];
+    const registeredSymbols = (targets ?? []).map((t: { symbol: string }) => t.symbol);
 
     for (const t of targets ?? []) {
       if (grouped[t.symbol]?.length > 0) {
@@ -76,7 +77,14 @@ export async function GET(request: Request) {
       }
     }
 
-    const targetsMeta = (targets ?? []).map((t: any) => ({
+    // stock_targets에 없지만 stock_prices에 데이터가 있는 종목도 포함
+    for (const [symbol, rows] of Object.entries(grouped)) {
+      if (!registeredSymbols.includes(symbol)) {
+        latest.push(rows[0]);
+      }
+    }
+
+    const targetsMeta = (targets ?? []).map((t: { symbol: string }) => ({
       symbol: t.symbol,
       hasTransactions: !!txSummary[t.symbol],
       totalInvested: txSummary[t.symbol]?.totalInvested ?? 0,
@@ -92,8 +100,9 @@ export async function GET(request: Request) {
         },
       }
     );
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('[api/stocks] 실패:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
