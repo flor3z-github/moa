@@ -44,7 +44,7 @@ export default function StockModal({ open, onClose }: StockModalProps) {
 
   // Step wizard: 1 = 종목 선택, 2 = 투자 정보 입력
   const [step, setStep] = useState<1 | 2>(1);
-  const [adding, setAdding] = useState(false);
+  const [, setAdding] = useState(false);
   const [newSymbol, setNewSymbol] = useState<string | null>(null);
   const [newTxs, setNewTxs] = useState<StockTransaction[]>([]);
 

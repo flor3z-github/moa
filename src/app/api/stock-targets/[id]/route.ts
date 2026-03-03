@@ -17,7 +17,7 @@ export async function PUT(
       );
     }
 
-    const updates: Record<string, any> = {};
+    const updates: Record<string, string> = {};
     if (symbol !== undefined) updates.symbol = symbol;
     if (name !== undefined) updates.name = name;
     if (market !== undefined) updates.market = market;
@@ -36,8 +36,9 @@ export async function PUT(
     }
 
     return NextResponse.json(data);
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -55,7 +56,8 @@ export async function DELETE(
 
     if (error) throw error;
     return NextResponse.json({ success: true });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
