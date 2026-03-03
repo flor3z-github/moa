@@ -8,16 +8,32 @@ export async function GET(request: Request) {
   try {
     const supabase = createServerClient();
 
-    // 등록된 종목 목록
-    const { data: targets } = await supabase
-      .from('stock_targets')
-      .select('symbol, name, market')
-      .order('created_at', { ascending: true });
+    const cutoffDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .split('T')[0];
 
-    // 거래 내역 조회 (종목별 투자 요약)
-    const { data: txRows } = await supabase
-      .from('stock_transactions')
-      .select('symbol, amount, quantity, transacted_at');
+    // 3개 쿼리 병렬 실행
+    const [targetsRes, txRes, pricesRes] = await Promise.all([
+      supabase
+        .from('stock_targets')
+        .select('symbol, name, market')
+        .order('created_at', { ascending: true }),
+      supabase
+        .from('stock_transactions')
+        .select('symbol, amount, quantity, transacted_at'),
+      supabase
+        .from('stock_prices')
+        .select('symbol, name, price, close, change_percent, volume, traded_at, fetched_at, provider')
+        .gte('traded_at', cutoffDate)
+        .order('traded_at', { ascending: false }),
+    ]);
+
+    const targets = targetsRes.data;
+    const txRows = txRes.data;
+    const data = pricesRes.data;
+    const error = pricesRes.error;
+
+    if (error) throw error;
 
     const txSummary: Record<string, { totalInvested: number; totalShares: number; firstTransactedAt: string | null }> = {};
     for (const tx of txRows ?? []) {
@@ -29,20 +45,6 @@ export async function GET(request: Request) {
         txSummary[tx.symbol].firstTransactedAt = d;
       }
     }
-
-    // 최근 N일간 주가 데이터
-    const { data, error } = await supabase
-      .from('stock_prices')
-      .select('*')
-      .gte(
-        'traded_at',
-        new Date(Date.now() - days * 24 * 60 * 60 * 1000)
-          .toISOString()
-          .split('T')[0]
-      )
-      .order('traded_at', { ascending: false });
-
-    if (error) throw error;
 
     // 종목별로 그룹핑
     const grouped: Record<string, any[]> = {};
@@ -60,14 +62,10 @@ export async function GET(request: Request) {
         latest.push({ ...grouped[t.symbol][0], market: t.market });
       } else {
         latest.push({
-          id: null,
           symbol: t.symbol,
           name: t.name,
           market: t.market,
           price: 0,
-          open: null,
-          high: null,
-          low: null,
           close: 0,
           volume: 0,
           change_percent: null,
@@ -86,7 +84,14 @@ export async function GET(request: Request) {
       firstTransactedAt: txSummary[t.symbol]?.firstTransactedAt ?? null,
     }));
 
-    return NextResponse.json({ latest, history: grouped, targets: targetsMeta });
+    return NextResponse.json(
+      { latest, history: grouped, targets: targetsMeta },
+      {
+        headers: {
+          'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
+        },
+      }
+    );
   } catch (err: any) {
     console.error('[api/stocks] 실패:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
