@@ -56,7 +56,6 @@ export async function GET(request: Request) {
     // 최신 데이터 (종목별 가장 최근 1건)
     // 가격 데이터가 있는 종목은 그대로, 없는 종목은 등록 정보로 placeholder 생성
     const latest: Record<string, unknown>[] = [];
-    const registeredSymbols = (targets ?? []).map((t: { symbol: string }) => t.symbol);
 
     for (const t of targets ?? []) {
       if (grouped[t.symbol]?.length > 0) {
@@ -74,13 +73,6 @@ export async function GET(request: Request) {
           provider: null,
           fetched_at: null,
         });
-      }
-    }
-
-    // stock_targets에 없지만 stock_prices에 데이터가 있는 종목도 포함
-    for (const [symbol, rows] of Object.entries(grouped)) {
-      if (!registeredSymbols.includes(symbol)) {
-        latest.push(rows[0]);
       }
     }
 
