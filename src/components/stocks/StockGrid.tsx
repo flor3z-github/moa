@@ -52,8 +52,7 @@ export default function StockGrid({ latest, history, targets, loading, error, on
                 stock={stock}
                 history={history[stock.symbol]}
                 index={i}
-                initialPrice={target?.initial_price}
-                purchasedAt={target?.purchased_at}
+                hasTransactions={target?.hasTransactions}
               />
             );
           })}

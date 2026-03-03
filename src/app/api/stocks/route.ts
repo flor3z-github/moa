@@ -11,8 +11,14 @@ export async function GET(request: Request) {
     // 등록된 종목 목록
     const { data: targets } = await supabase
       .from('stock_targets')
-      .select('symbol, name, market, initial_price, purchased_at')
+      .select('symbol, name, market')
       .order('created_at', { ascending: true });
+
+    // 거래 있는 종목 조회
+    const { data: txSymbols } = await supabase
+      .from('stock_transactions')
+      .select('symbol');
+    const symbolsWithTx = [...new Set((txSymbols ?? []).map((r: any) => r.symbol))];
 
     // 최근 N일간 주가 데이터
     const { data, error } = await supabase
@@ -69,7 +75,12 @@ export async function GET(request: Request) {
       }
     }
 
-    return NextResponse.json({ latest, history: grouped, targets: targets ?? [] });
+    const targetsMeta = (targets ?? []).map((t: any) => ({
+      symbol: t.symbol,
+      hasTransactions: symbolsWithTx.includes(t.symbol),
+    }));
+
+    return NextResponse.json({ latest, history: grouped, targets: targetsMeta });
   } catch (err: any) {
     console.error('[api/stocks] 실패:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });

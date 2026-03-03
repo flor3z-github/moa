@@ -21,10 +21,26 @@ export interface StockTarget {
   purchased_at?: string | null;
 }
 
-export interface MonthlyReturn {
+export interface StockTransaction {
+  id?: number;
+  symbol: string;
+  type: 'buy';
+  amount: number;
+  price: number;
+  quantity: number;
+  transacted_at: string;
+  source: 'manual' | 'dca';
+  created_at?: string;
+}
+
+export interface MonthlyPortfolioData {
   yearMonth: string;
   closePrice: number;
+  portfolioValue: number;
+  investedAmount: number;
+  profitLoss: number;
   returnPct: number;
+  cumulativeShares: number;
 }
 
 export const STOCK_TARGETS: StockTarget[] = [

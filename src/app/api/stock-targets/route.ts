@@ -21,7 +21,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { symbol, name, market, initial_investment, initial_price, purchased_at } = body;
+    const { symbol, name, market } = body;
 
     if (!symbol || !name || !market) {
       return NextResponse.json(
@@ -40,14 +40,7 @@ export async function POST(request: Request) {
     const supabase = createServerClient();
     const { data, error } = await supabase
       .from('stock_targets')
-      .insert({
-        symbol,
-        name,
-        market,
-        initial_investment: initial_investment ?? null,
-        initial_price: initial_price ?? null,
-        purchased_at: purchased_at ?? null,
-      })
+      .insert({ symbol, name, market })
       .select()
       .single();
 

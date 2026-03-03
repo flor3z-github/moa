@@ -79,6 +79,35 @@ CREATE POLICY "stock_monthly_prices_read" ON stock_monthly_prices
 CREATE POLICY "stock_monthly_prices_insert" ON stock_monthly_prices
   FOR INSERT WITH CHECK (true);
 
+-- 주식 거래 내역 테이블
+CREATE TABLE IF NOT EXISTS stock_transactions (
+  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  symbol text NOT NULL REFERENCES stock_targets(symbol) ON DELETE CASCADE,
+  type text NOT NULL DEFAULT 'buy' CHECK (type IN ('buy')),
+  amount numeric NOT NULL,
+  price numeric NOT NULL,
+  quantity numeric NOT NULL,
+  transacted_at date NOT NULL,
+  source text NOT NULL DEFAULT 'manual' CHECK (source IN ('manual', 'dca')),
+  created_at timestamptz DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_stock_transactions_symbol ON stock_transactions (symbol);
+CREATE INDEX IF NOT EXISTS idx_stock_transactions_symbol_date ON stock_transactions (symbol, transacted_at ASC);
+
+ALTER TABLE stock_transactions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "stock_transactions_read" ON stock_transactions FOR SELECT USING (true);
+CREATE POLICY "stock_transactions_insert" ON stock_transactions FOR INSERT WITH CHECK (true);
+CREATE POLICY "stock_transactions_delete" ON stock_transactions FOR DELETE USING (true);
+
+-- 기존 stock_targets 데이터 마이그레이션 (한 번만 실행)
+-- INSERT INTO stock_transactions (symbol, type, amount, price, quantity, transacted_at, source)
+-- SELECT symbol, 'buy', initial_investment, initial_price,
+--        initial_investment / initial_price, purchased_at, 'manual'
+-- FROM stock_targets
+-- WHERE initial_investment IS NOT NULL AND initial_price IS NOT NULL AND purchased_at IS NOT NULL;
+
 -- ============================================
 -- 추후 확장용 (지금은 실행하지 않아도 됨)
 -- ============================================
