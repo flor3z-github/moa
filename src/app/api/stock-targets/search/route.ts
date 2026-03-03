@@ -5,6 +5,7 @@ interface AutocResult {
   shortname?: string;
   longname?: string;
   name?: string;
+  exchange?: string;
   exchDisp?: string;
   typeDisp?: string;
   quoteType?: string;
@@ -55,7 +56,7 @@ export async function GET(request: Request) {
           }
         }
         // US market
-        const exch = q.exchDisp ?? '';
+        const exch = q.exchange ?? '';
         if (US_EXCHANGES.has(exch)) {
           const market = (exch === 'NMS' || exch === 'NASDAQ' || exch === 'NGM') ? 'NASDAQ' : 'NYSE';
           return {
