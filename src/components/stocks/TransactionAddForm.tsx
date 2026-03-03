@@ -9,18 +9,18 @@ interface TransactionAddFormProps {
 
 export default function TransactionAddForm({ symbol, onAdded }: TransactionAddFormProps) {
   const [date, setDate] = useState('');
-  const [amount, setAmount] = useState('');
+  const [quantity, setQuantity] = useState('');
   const [price, setPrice] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
   async function handleSubmit() {
-    if (!date || !amount || !price) {
-      setError('날짜, 금액, 주가를 모두 입력해주세요.');
+    if (!date || !quantity || !price) {
+      setError('날짜, 주수, 주가를 모두 입력해주세요.');
       return;
     }
-    if (Number(amount) <= 0 || Number(price) <= 0) {
-      setError('금액과 주가는 0보다 커야 합니다.');
+    if (Number(quantity) <= 0 || Number(price) <= 0) {
+      setError('주수와 주가는 0보다 커야 합니다.');
       return;
     }
     setError('');
@@ -31,7 +31,7 @@ export default function TransactionAddForm({ symbol, onAdded }: TransactionAddFo
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           symbol,
-          amount: Number(amount),
+          quantity: Number(quantity),
           price: Number(price),
           transacted_at: date,
         }),
@@ -41,7 +41,7 @@ export default function TransactionAddForm({ symbol, onAdded }: TransactionAddFo
         throw new Error(json.error || '추가 실패');
       }
       setDate('');
-      setAmount('');
+      setQuantity('');
       setPrice('');
       onAdded();
     } catch (e) {
@@ -63,10 +63,11 @@ export default function TransactionAddForm({ symbol, onAdded }: TransactionAddFo
         />
         <input
           type="number"
-          placeholder="금액(원)"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
+          placeholder="주수"
+          value={quantity}
+          onChange={(e) => setQuantity(e.target.value)}
           className="glass-input px-2 py-1.5 text-[12px]"
+          step="any"
         />
         <input
           type="number"

@@ -220,7 +220,7 @@ export default function StockModal({ open, onClose }: StockModalProps) {
       onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}
     >
       <div
-        className="glass-card animate-scale-in w-full max-w-[560px] overflow-auto rounded-2xl p-6"
+        className="glass-card animate-scale-in w-full max-w-[560px] overflow-auto rounded-2xl p-4 sm:p-6"
         style={{ maxHeight: '85vh', background: 'var(--bg-primary)', backdropFilter: 'blur(40px)' }}
       >
         {/* Header */}
@@ -248,22 +248,22 @@ export default function StockModal({ open, onClose }: StockModalProps) {
           {targets.map((t) => (
             <div key={t.id} className="glass-card mb-2 rounded-xl p-3">
               {/* Stock info row */}
-              <div className="flex items-center justify-between">
-                <div>
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0 truncate">
                   <span className="text-sm font-semibold text-text-primary">{t.name}</span>
-                  <span className="ml-2 text-xs text-text-muted">{t.symbol}</span>
-                  <span className="ml-2 text-[11px] text-text-muted">{t.market}</span>
+                  <span className="ml-1.5 text-xs text-text-muted">{t.symbol}</span>
+                  <span className="ml-1 text-[11px] text-text-muted">{t.market}</span>
                 </div>
-                <div className="flex gap-1">
+                <div className="flex shrink-0 gap-1">
                   <button
                     onClick={() => toggleExpand(t.symbol)}
-                    className="glass-card rounded-lg px-2.5 py-1 text-xs text-text-secondary transition-colors hover:text-text-primary"
+                    className="glass-card whitespace-nowrap rounded-lg px-2.5 py-1 text-xs text-text-secondary transition-colors hover:text-text-primary"
                   >
                     {expandedSymbol === t.symbol ? '접기' : '거래 내역'}
                   </button>
                   <button
                     onClick={() => handleDelete(t.id)}
-                    className="glass-card rounded-lg px-2.5 py-1 text-xs text-negative transition-colors hover:brightness-110"
+                    className="glass-card whitespace-nowrap rounded-lg px-2.5 py-1 text-xs text-negative transition-colors hover:brightness-110"
                   >
                     삭제
                   </button>

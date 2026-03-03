@@ -10,22 +10,22 @@ interface DCAFormProps {
 export default function DCAForm({ symbol, onAdded }: DCAFormProps) {
   const [startMonth, setStartMonth] = useState('');
   const [endMonth, setEndMonth] = useState('');
-  const [monthlyAmount, setMonthlyAmount] = useState('');
+  const [monthlyQuantity, setMonthlyQuantity] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<{ created: number; skipped: string[] } | null>(null);
 
   async function handleSubmit() {
-    if (!startMonth || !endMonth || !monthlyAmount) {
-      setError('시작월, 종료월, 월 투자금액을 모두 입력해주세요.');
+    if (!startMonth || !endMonth || !monthlyQuantity) {
+      setError('시작월, 종료월, 월 주수를 모두 입력해주세요.');
       return;
     }
     if (startMonth > endMonth) {
       setError('시작월은 종료월보다 이전이어야 합니다.');
       return;
     }
-    if (Number(monthlyAmount) <= 0) {
-      setError('월 투자금액은 0보다 커야 합니다.');
+    if (Number(monthlyQuantity) <= 0) {
+      setError('월 주수는 0보다 커야 합니다.');
       return;
     }
     setError('');
@@ -39,7 +39,7 @@ export default function DCAForm({ symbol, onAdded }: DCAFormProps) {
           symbol,
           startMonth,
           endMonth,
-          monthlyAmount: Number(monthlyAmount),
+          monthlyQuantity: Number(monthlyQuantity),
         }),
       });
       const json = await res.json();
@@ -47,7 +47,7 @@ export default function DCAForm({ symbol, onAdded }: DCAFormProps) {
       setResult({ created: json.data?.length ?? 0, skipped: json.skipped ?? [] });
       setStartMonth('');
       setEndMonth('');
-      setMonthlyAmount('');
+      setMonthlyQuantity('');
       onAdded();
     } catch (e) {
       setError(e instanceof Error ? e.message : '오류 발생');
@@ -77,10 +77,11 @@ export default function DCAForm({ symbol, onAdded }: DCAFormProps) {
         />
         <input
           type="number"
-          placeholder="월 투자금액(원)"
-          value={monthlyAmount}
-          onChange={(e) => setMonthlyAmount(e.target.value)}
+          placeholder="월 주수"
+          value={monthlyQuantity}
+          onChange={(e) => setMonthlyQuantity(e.target.value)}
           className="glass-input col-span-2 min-w-0 px-2 py-1.5 text-[12px]"
+          step="any"
         />
         <button
           onClick={handleSubmit}
