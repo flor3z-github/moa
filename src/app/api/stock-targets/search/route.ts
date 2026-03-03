@@ -39,10 +39,6 @@ export async function GET(request: Request) {
     const US_EXCHANGES = new Set(['NYSE', 'NMS', 'NASDAQ', 'NYQ', 'NGM', 'PCX', 'BTS', 'ASE']);
 
     const stocks = (data.quotes ?? [])
-      .filter(
-        (q: AutocResult) =>
-          q.quoteType === 'EQUITY' || q.typeDisp === 'Equity' || q.typeDisp === '주식'
-      )
       .map((q: AutocResult) => {
         const sym = q.symbol ?? '';
         // Korean market
