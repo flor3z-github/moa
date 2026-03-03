@@ -11,7 +11,7 @@ import StockModal from '@/components/stocks/StockModal';
 
 export default function Home() {
   const { theme, toggle } = useTheme();
-  const { latest, history, loading, error, refetch } = useStocks(30);
+  const { latest, history, targets, loading, error, refetch } = useStocks(30);
   const [activeTab, setActiveTab] = useState<Tab>('stocks');
   const [showModal, setShowModal] = useState(false);
 
@@ -26,6 +26,7 @@ export default function Home() {
             <StockGrid
               latest={latest}
               history={history}
+              targets={targets}
               loading={loading}
               error={error}
               onOpenModal={() => setShowModal(true)}

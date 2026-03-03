@@ -1,14 +1,16 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { StockTransaction } from '@/lib/stock/types';
+import TransactionList from './TransactionList';
+import TransactionAddForm from './TransactionAddForm';
+import DCAForm from './DCAForm';
 
 interface StockTargetItem {
   id: number;
   symbol: string;
   name: string;
   market: 'KOSPI' | 'KOSDAQ';
-  initial_investment: number | null;
-  initial_price: number | null;
   created_at: string;
 }
 
@@ -23,22 +25,20 @@ interface StockModalProps {
   onClose: () => void;
 }
 
-function formatPrice(price: number) {
-  return new Intl.NumberFormat('ko-KR').format(price);
-}
-
 export default function StockModal({ open, onClose }: StockModalProps) {
   const [targets, setTargets] = useState<StockTargetItem[]>([]);
   const [targetsLoading, setTargetsLoading] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [editForm, setEditForm] = useState({ initial_investment: '', initial_price: '' });
+
+  // Transaction expansion per symbol
+  const [expandedSymbol, setExpandedSymbol] = useState<string | null>(null);
+  const [transactions, setTransactions] = useState<StockTransaction[]>([]);
+  const [txLoading, setTxLoading] = useState(false);
+  const [deletingTx, setDeletingTx] = useState<number | null>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [selectedStock, setSelectedStock] = useState<SearchResult | null>(null);
-  const [addInvestment, setAddInvestment] = useState('');
-  const [addPrice, setAddPrice] = useState('');
   const [addError, setAddError] = useState('');
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null);
 
@@ -56,22 +56,61 @@ export default function StockModal({ open, onClose }: StockModalProps) {
     }
   }, []);
 
+  const fetchTransactions = useCallback(async (symbol: string) => {
+    setTxLoading(true);
+    try {
+      const res = await fetch(`/api/stock-transactions?symbol=${encodeURIComponent(symbol)}`);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setTransactions(data);
+    } catch {
+      setTransactions([]);
+    } finally {
+      setTxLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (open) fetchTargets();
   }, [open, fetchTargets]);
 
+  function toggleExpand(symbol: string) {
+    if (expandedSymbol === symbol) {
+      setExpandedSymbol(null);
+      setTransactions([]);
+    } else {
+      setExpandedSymbol(symbol);
+      fetchTransactions(symbol);
+    }
+  }
+
+  async function handleDeleteTx(id: number) {
+    setDeletingTx(id);
+    try {
+      await fetch(`/api/stock-transactions/${id}`, { method: 'DELETE' });
+      if (expandedSymbol) fetchTransactions(expandedSymbol);
+    } catch {
+      // ignore
+    } finally {
+      setDeletingTx(null);
+    }
+  }
+
+  function handleTxAdded() {
+    if (expandedSymbol) fetchTransactions(expandedSymbol);
+  }
+
   function resetForm() {
-    setEditingId(null);
     setSelectedStock(null);
     setSearchQuery('');
     setSearchResults([]);
-    setAddInvestment('');
-    setAddPrice('');
     setAddError('');
   }
 
   function handleClose() {
     resetForm();
+    setExpandedSymbol(null);
+    setTransactions([]);
     onClose();
   }
 
@@ -110,8 +149,6 @@ export default function StockModal({ open, onClose }: StockModalProps) {
           symbol: selectedStock.symbol,
           name: selectedStock.name,
           market: selectedStock.market,
-          initial_investment: addInvestment ? Number(addInvestment) : null,
-          initial_price: addPrice ? Number(addPrice) : null,
         }),
       });
       const data = await res.json();
@@ -130,32 +167,11 @@ export default function StockModal({ open, onClose }: StockModalProps) {
     if (!confirm('이 종목을 삭제하시겠습니까?')) return;
     try {
       await fetch(`/api/stock-targets/${id}`, { method: 'DELETE' });
-      fetchTargets();
-    } catch {
-      // ignore
-    }
-  }
-
-  function startEdit(target: StockTargetItem) {
-    setEditingId(target.id);
-    setEditForm({
-      initial_investment: target.initial_investment?.toString() ?? '',
-      initial_price: target.initial_price?.toString() ?? '',
-    });
-  }
-
-  async function handleEditSave(id: number) {
-    try {
-      const res = await fetch(`/api/stock-targets/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          initial_investment: editForm.initial_investment ? Number(editForm.initial_investment) : null,
-          initial_price: editForm.initial_price ? Number(editForm.initial_price) : null,
-        }),
-      });
-      if (!res.ok) throw new Error();
-      setEditingId(null);
+      const target = targets.find((t) => t.id === id);
+      if (target?.symbol === expandedSymbol) {
+        setExpandedSymbol(null);
+        setTransactions([]);
+      }
       fetchTargets();
     } catch {
       // ignore
@@ -171,7 +187,7 @@ export default function StockModal({ open, onClose }: StockModalProps) {
       onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}
     >
       <div
-        className="glass-card animate-scale-in w-full max-w-[520px] overflow-auto rounded-2xl p-6"
+        className="glass-card animate-scale-in w-full max-w-[560px] overflow-auto rounded-2xl p-6"
         style={{ maxHeight: '85vh', background: 'var(--bg-primary)', backdropFilter: 'blur(40px)' }}
       >
         {/* Header */}
@@ -198,74 +214,47 @@ export default function StockModal({ open, onClose }: StockModalProps) {
           )}
           {targets.map((t) => (
             <div key={t.id} className="glass-card mb-2 rounded-xl p-3">
-              {editingId === t.id ? (
+              {/* Stock info row */}
+              <div className="flex items-center justify-between">
                 <div>
-                  <div className="mb-2 flex items-center justify-between">
-                    <div>
-                      <span className="text-sm font-semibold text-text-primary">{t.name}</span>
-                      <span className="ml-2 text-xs text-text-muted">{t.symbol}</span>
-                    </div>
-                    <span className="text-[11px] text-text-muted">{t.market}</span>
-                  </div>
-                  <div className="mb-2 flex gap-2">
-                    <input
-                      type="number"
-                      placeholder="초기 투자금"
-                      value={editForm.initial_investment}
-                      onChange={(e) => setEditForm({ ...editForm, initial_investment: e.target.value })}
-                      className="glass-input flex-1 px-2.5 py-1.5 text-[13px]"
-                    />
-                    <input
-                      type="number"
-                      placeholder="초기 주가"
-                      value={editForm.initial_price}
-                      onChange={(e) => setEditForm({ ...editForm, initial_price: e.target.value })}
-                      className="glass-input flex-1 px-2.5 py-1.5 text-[13px]"
-                    />
-                  </div>
-                  <div className="flex justify-end gap-1.5">
-                    <button
-                      onClick={() => setEditingId(null)}
-                      className="glass-card rounded-lg px-3 py-1 text-xs text-text-muted transition-colors hover:text-text-primary"
-                    >
-                      취소
-                    </button>
-                    <button
-                      onClick={() => handleEditSave(t.id)}
-                      className="rounded-lg bg-accent px-3 py-1 text-xs font-semibold text-white"
-                    >
-                      저장
-                    </button>
-                  </div>
+                  <span className="text-sm font-semibold text-text-primary">{t.name}</span>
+                  <span className="ml-2 text-xs text-text-muted">{t.symbol}</span>
+                  <span className="ml-2 text-[11px] text-text-muted">{t.market}</span>
                 </div>
-              ) : (
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-sm font-semibold text-text-primary">{t.name}</span>
-                    <span className="ml-2 text-xs text-text-muted">{t.symbol}</span>
-                    <span className="ml-2 text-[11px] text-text-muted">{t.market}</span>
-                    {(t.initial_investment || t.initial_price) && (
-                      <div className="mt-0.5 text-[11px] text-text-muted">
-                        {t.initial_investment && `투자금: ${formatPrice(t.initial_investment)}`}
-                        {t.initial_investment && t.initial_price && ' · '}
-                        {t.initial_price && `매입가: ${formatPrice(t.initial_price)}`}
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => toggleExpand(t.symbol)}
+                    className="glass-card rounded-lg px-2.5 py-1 text-xs text-text-secondary transition-colors hover:text-text-primary"
+                  >
+                    {expandedSymbol === t.symbol ? '접기' : '거래 내역'}
+                  </button>
+                  <button
+                    onClick={() => handleDelete(t.id)}
+                    className="glass-card rounded-lg px-2.5 py-1 text-xs text-negative transition-colors hover:brightness-110"
+                  >
+                    삭제
+                  </button>
+                </div>
+              </div>
+
+              {/* Expanded transaction section */}
+              {expandedSymbol === t.symbol && (
+                <div className="animate-fade-in mt-3 border-t border-glass-border pt-3">
+                  {txLoading ? (
+                    <div className="py-3 text-center text-[12px] text-text-muted">불러오는 중...</div>
+                  ) : (
+                    <>
+                      <TransactionList
+                        transactions={transactions}
+                        onDelete={handleDeleteTx}
+                        deleting={deletingTx}
+                      />
+                      <div className="mt-3 space-y-3 border-t border-glass-border pt-3">
+                        <TransactionAddForm symbol={t.symbol} onAdded={handleTxAdded} />
+                        <DCAForm symbol={t.symbol} onAdded={handleTxAdded} />
                       </div>
-                    )}
-                  </div>
-                  <div className="flex gap-1">
-                    <button
-                      onClick={() => startEdit(t)}
-                      className="glass-card rounded-lg px-2.5 py-1 text-xs text-text-secondary transition-colors hover:text-text-primary"
-                    >
-                      수정
-                    </button>
-                    <button
-                      onClick={() => handleDelete(t.id)}
-                      className="glass-card rounded-lg px-2.5 py-1 text-xs text-negative transition-colors hover:brightness-110"
-                    >
-                      삭제
-                    </button>
-                  </div>
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -333,24 +322,6 @@ export default function StockModal({ open, onClose }: StockModalProps) {
               </button>
             </div>
           )}
-
-          {/* Investment inputs */}
-          <div className="mb-2.5 flex gap-2">
-            <input
-              type="number"
-              placeholder="초기 투자금 (선택)"
-              value={addInvestment}
-              onChange={(e) => setAddInvestment(e.target.value)}
-              className="glass-input flex-1 px-2.5 py-2 text-[13px]"
-            />
-            <input
-              type="number"
-              placeholder="초기 주가 (선택)"
-              value={addPrice}
-              onChange={(e) => setAddPrice(e.target.value)}
-              className="glass-input flex-1 px-2.5 py-2 text-[13px]"
-            />
-          </div>
 
           {addError && (
             <div className="mb-2 text-xs text-negative">{addError}</div>
