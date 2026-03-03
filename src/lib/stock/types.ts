@@ -43,6 +43,16 @@ export interface MonthlyPortfolioData {
   cumulativeShares: number;
 }
 
+export interface WeeklyPortfolioData {
+  weekStart: string; // YYYY-MM-DD (월요일)
+  closePrice: number;
+  portfolioValue: number;
+  investedAmount: number;
+  profitLoss: number;
+  returnPct: number;
+  cumulativeShares: number;
+}
+
 export const STOCK_TARGETS: StockTarget[] = [
   { symbol: '005930', name: '삼성전자', market: 'KOSPI' },
   { symbol: '000660', name: 'SK하이닉스', market: 'KOSPI' },

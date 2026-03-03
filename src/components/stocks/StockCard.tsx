@@ -9,24 +9,44 @@ const MonthlyReturnChart = dynamic(() => import('./MonthlyReturnChart'), {
   ssr: false,
 });
 
+const WeeklyReturnChart = dynamic(() => import('./WeeklyReturnChart'), {
+  ssr: false,
+});
+
 interface StockCardProps {
   stock: StockPrice;
   history?: StockPrice[];
   index: number;
   hasTransactions?: boolean;
+  totalInvested?: number;
+  totalShares?: number;
+  firstTransactedAt?: string | null;
+}
+
+type ChartMode = 'monthly' | 'weekly' | 'insufficient';
+
+function getChartMode(firstTransactedAt: string | null): ChartMode {
+  if (!firstTransactedAt) return 'insufficient';
+  const now = Date.now();
+  const first = new Date(firstTransactedAt).getTime();
+  const daysSince = (now - first) / (1000 * 60 * 60 * 24);
+  if (daysSince >= 30) return 'monthly';
+  if (daysSince >= 7) return 'weekly';
+  return 'insufficient';
 }
 
 function formatPrice(price: number) {
   return new Intl.NumberFormat('ko-KR').format(price);
 }
 
-function formatVolume(volume: number) {
-  if (volume >= 1_000_000) return `${(volume / 1_000_000).toFixed(1)}M`;
-  if (volume >= 1_000) return `${(volume / 1_000).toFixed(0)}K`;
-  return volume.toString();
+function formatKRW(value: number) {
+  const abs = Math.abs(value);
+  if (abs >= 1_0000_0000) return `${(value / 1_0000_0000).toFixed(1)}억`;
+  if (abs >= 1_0000) return `${(value / 1_0000).toFixed(0)}만`;
+  return formatPrice(value);
 }
 
-export default function StockCard({ stock, history, index, hasTransactions }: StockCardProps) {
+export default function StockCard({ stock, history, index, hasTransactions, totalInvested = 0, totalShares = 0, firstTransactedAt = null }: StockCardProps) {
   const [expanded, setExpanded] = useState(false);
   const pending = !stock.fetched_at;
   const canExpand = !pending && !!hasTransactions;
@@ -64,7 +84,7 @@ export default function StockCard({ stock, history, index, hasTransactions }: St
                   border: '1px solid var(--glass-border)',
                 }}
               >
-                {stock.symbol.endsWith('.KQ') ? 'KOSDAQ' : 'KOSPI'}
+                {stock.market ?? 'KOSPI'}
               </span>
             </div>
           </div>
@@ -106,28 +126,40 @@ export default function StockCard({ stock, history, index, hasTransactions }: St
           </div>
         )}
 
-        {/* OHLV Grid */}
-        {!pending && (
-          <div className="mt-3 grid grid-cols-4 gap-2 border-t border-glass-border pt-3">
-            {[
-              { label: '시가', value: stock.open, fmt: 'price' as const },
-              { label: '고가', value: stock.high, fmt: 'price' as const },
-              { label: '저가', value: stock.low, fmt: 'price' as const },
-              { label: '거래량', value: stock.volume, fmt: 'volume' as const },
-            ].map((item) => (
-              <div key={item.label}>
-                <div className="text-[10px] text-text-muted">{item.label}</div>
-                <div className="mt-0.5 text-xs text-text-secondary">
-                  {item.value != null
-                    ? item.fmt === 'volume'
-                      ? formatVolume(item.value)
-                      : formatPrice(item.value)
-                    : '-'}
+        {/* Investment summary */}
+        {!pending && hasTransactions && totalInvested > 0 && (() => {
+          const currentValue = Math.round(stock.price * totalShares);
+          const profitLoss = currentValue - totalInvested;
+          const returnPct = (profitLoss / totalInvested) * 100;
+          const isProfitPositive = profitLoss > 0;
+          const isProfitNegative = profitLoss < 0;
+          return (
+            <div className="mt-3 grid grid-cols-3 gap-2 border-t border-glass-border pt-3">
+              <div>
+                <div className="text-[10px] text-text-muted">투자금</div>
+                <div className="mt-0.5 text-xs text-text-secondary">{formatKRW(totalInvested)}</div>
+              </div>
+              <div>
+                <div className="text-[10px] text-text-muted">수익률</div>
+                <div
+                  className="mt-0.5 text-xs font-semibold"
+                  style={{ color: isProfitPositive ? 'var(--positive)' : isProfitNegative ? 'var(--negative)' : 'var(--text-secondary)' }}
+                >
+                  {isProfitPositive ? '+' : ''}{returnPct.toFixed(1)}%
                 </div>
               </div>
-            ))}
-          </div>
-        )}
+              <div>
+                <div className="text-[10px] text-text-muted">평가금</div>
+                <div
+                  className="mt-0.5 text-xs font-semibold"
+                  style={{ color: isProfitPositive ? 'var(--positive)' : isProfitNegative ? 'var(--negative)' : 'var(--text-secondary)' }}
+                >
+                  {formatKRW(currentValue)}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Monthly return expand toggle */}
         {canExpand && (
@@ -155,12 +187,21 @@ export default function StockCard({ stock, history, index, hasTransactions }: St
           </button>
         )}
 
-        {/* Monthly return chart */}
-        {canExpand && expanded && (
-          <div className="animate-fade-in mt-2 border-t border-glass-border pt-3">
-            <MonthlyReturnChart symbol={stock.symbol} />
-          </div>
-        )}
+        {/* Period-based return chart */}
+        {canExpand && expanded && (() => {
+          const chartMode = getChartMode(firstTransactedAt ?? null);
+          return (
+            <div className="animate-fade-in mt-2 border-t border-glass-border pt-3">
+              {chartMode === 'monthly' && <MonthlyReturnChart symbol={stock.symbol} />}
+              {chartMode === 'weekly' && <WeeklyReturnChart symbol={stock.symbol} />}
+              {chartMode === 'insufficient' && (
+                <div className="py-4 text-center text-xs text-text-muted">
+                  데이터 수집이 더 필요합니다
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
