@@ -107,13 +107,8 @@ export default function StockCard({ stock, history, index, hasTransactions, tota
               <span className="text-xs text-text-muted">수집 대기 중</span>
             ) : hasPortfolio ? (
               <>
-                <div
-                  className="text-lg font-bold"
-                  style={{
-                    color: isProfitPositive ? 'var(--positive)' : isProfitNegative ? 'var(--negative)' : 'var(--text-primary)',
-                  }}
-                >
-                  {formatKRW(currentValue)}
+                <div className="text-lg font-bold text-text-primary">
+                  {formatPrice(currentValue)}
                 </div>
                 <span
                   className="inline-block rounded-full px-2 py-0.5 text-xs font-semibold"
@@ -164,7 +159,7 @@ export default function StockCard({ stock, history, index, hasTransactions, tota
           <div className="mt-3 grid grid-cols-2 gap-2 border-t border-glass-border pt-3">
             <div>
               <div className="text-[10px] text-text-muted">투자 원금</div>
-              <div className="mt-0.5 text-xs text-text-secondary">{formatKRW(totalInvested)}</div>
+              <div className="mt-0.5 text-xs text-text-secondary">{formatPrice(totalInvested)}</div>
             </div>
             <div>
               <div className="text-[10px] text-text-muted">보유 수량</div>
