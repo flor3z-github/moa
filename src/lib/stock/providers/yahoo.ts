@@ -16,11 +16,32 @@ const MARKET_SUFFIX: Record<string, string> = {
 
 const CHART_API = 'https://query1.finance.yahoo.com/v8/finance/chart';
 
+const US_MARKETS = new Set(['NYSE', 'NASDAQ']);
+
+export async function fetchUsdKrwRate(): Promise<number | null> {
+  try {
+    const url = `${CHART_API}/USDKRW=X?interval=1d&range=1d`;
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const rate = data.chart?.result?.[0]?.meta?.regularMarketPrice;
+    return typeof rate === 'number' ? rate : null;
+  } catch {
+    console.error('[yahoo] USD/KRW 환율 조회 실패');
+    return null;
+  }
+}
+
 export class YahooProvider implements StockProvider {
   readonly name = 'yahoo';
 
   async fetchQuotes(targets: StockTarget[]): Promise<StockQuote[]> {
     const results: StockQuote[] = [];
+
+    const hasUsStock = targets.some((t) => US_MARKETS.has(t.market));
+    const usdKrw = hasUsStock ? await fetchUsdKrwRate() : null;
 
     for (const target of targets) {
       try {
@@ -56,14 +77,17 @@ export class YahooProvider implements StockProvider {
           ? ((price - prevClose) / prevClose) * 100
           : null;
 
+        const rate = US_MARKETS.has(target.market) && usdKrw ? usdKrw : 1;
+        const toKrw = (v: number | null) => v != null ? Math.round(v * rate) : null;
+
         results.push({
           symbol: target.symbol,
           name: target.name,
-          price,
-          open: ohlc.open?.[lastIdx] ?? null,
-          high: ohlc.high?.[lastIdx] ?? null,
-          low: ohlc.low?.[lastIdx] ?? null,
-          close: price,
+          price: Math.round(price * rate),
+          open: toKrw(ohlc.open?.[lastIdx] ?? null),
+          high: toKrw(ohlc.high?.[lastIdx] ?? null),
+          low: toKrw(ohlc.low?.[lastIdx] ?? null),
+          close: Math.round(price * rate),
           volume: ohlc.volume?.[lastIdx] ?? meta.regularMarketVolume ?? 0,
           change_percent: changePct !== null ? Math.round(changePct * 100) / 100 : null,
           traded_at: tradedAt,
@@ -98,6 +122,9 @@ export async function fetchMonthlyHistory(
   const chart = data.chart?.result?.[0];
   if (!chart) return [];
 
+  const usdKrw = US_MARKETS.has(market) ? await fetchUsdKrwRate() : null;
+  const rate = usdKrw ?? 1;
+
   const timestamps: number[] = chart.timestamp ?? [];
   const closes: (number | null)[] = chart.indicators?.quote?.[0]?.close ?? [];
 
@@ -109,7 +136,7 @@ export async function fetchMonthlyHistory(
     const kst = new Date(date.getTime() + 9 * 60 * 60 * 1000);
     const yearMonth = `${kst.getFullYear()}-${String(kst.getMonth() + 1).padStart(2, '0')}`;
     const tradedAt = kst.toISOString().split('T')[0];
-    results.push({ yearMonth, close: closes[i]!, tradedAt });
+    results.push({ yearMonth, close: Math.round(closes[i]! * rate), tradedAt });
   }
   return results;
 }
