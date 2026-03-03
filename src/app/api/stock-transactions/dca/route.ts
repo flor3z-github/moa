@@ -5,17 +5,17 @@ import { fetchMonthlyHistory } from '@/lib/stock/providers/yahoo';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { symbol, startMonth, endMonth, monthlyAmount } = body;
+    const { symbol, startMonth, endMonth, monthlyQuantity } = body;
 
-    if (!symbol || !startMonth || !endMonth || !monthlyAmount) {
+    if (!symbol || !startMonth || !endMonth || !monthlyQuantity) {
       return NextResponse.json(
-        { error: 'symbol, startMonth, endMonth, monthlyAmount는 필수입니다.' },
+        { error: 'symbol, startMonth, endMonth, monthlyQuantity는 필수입니다.' },
         { status: 400 }
       );
     }
 
-    if (monthlyAmount <= 0) {
-      return NextResponse.json({ error: 'monthlyAmount는 0보다 커야 합니다.' }, { status: 400 });
+    if (monthlyQuantity <= 0) {
+      return NextResponse.json({ error: 'monthlyQuantity는 0보다 커야 합니다.' }, { status: 400 });
     }
 
     if (startMonth > endMonth) {
@@ -118,9 +118,9 @@ export async function POST(request: Request) {
       transactions.push({
         symbol,
         type: 'buy',
-        amount: monthlyAmount,
+        amount: monthlyQuantity * price,
         price,
-        quantity: monthlyAmount / price,
+        quantity: monthlyQuantity,
         transacted_at: cached.traded_at,
         source: 'dca',
       });

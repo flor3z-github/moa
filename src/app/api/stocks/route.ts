@@ -14,11 +14,21 @@ export async function GET(request: Request) {
       .select('symbol, name, market')
       .order('created_at', { ascending: true });
 
-    // 거래 있는 종목 조회
-    const { data: txSymbols } = await supabase
+    // 거래 내역 조회 (종목별 투자 요약)
+    const { data: txRows } = await supabase
       .from('stock_transactions')
-      .select('symbol');
-    const symbolsWithTx = [...new Set((txSymbols ?? []).map((r: { symbol: string }) => r.symbol))];
+      .select('symbol, amount, quantity, transacted_at');
+
+    const txSummary: Record<string, { totalInvested: number; totalShares: number; firstTransactedAt: string | null }> = {};
+    for (const tx of txRows ?? []) {
+      if (!txSummary[tx.symbol]) txSummary[tx.symbol] = { totalInvested: 0, totalShares: 0, firstTransactedAt: null };
+      txSummary[tx.symbol].totalInvested += Number(tx.amount);
+      txSummary[tx.symbol].totalShares += Number(tx.quantity);
+      const d = tx.transacted_at as string;
+      if (!txSummary[tx.symbol].firstTransactedAt || d < txSummary[tx.symbol].firstTransactedAt!) {
+        txSummary[tx.symbol].firstTransactedAt = d;
+      }
+    }
 
     // 최근 N일간 주가 데이터
     const { data, error } = await supabase
@@ -48,12 +58,13 @@ export async function GET(request: Request) {
 
     for (const t of targets ?? []) {
       if (grouped[t.symbol]?.length > 0) {
-        latest.push(grouped[t.symbol][0]);
+        latest.push({ ...grouped[t.symbol][0], market: t.market });
       } else {
         latest.push({
           id: null,
           symbol: t.symbol,
           name: t.name,
+          market: t.market,
           price: 0,
           open: null,
           high: null,
@@ -77,7 +88,10 @@ export async function GET(request: Request) {
 
     const targetsMeta = (targets ?? []).map((t: { symbol: string }) => ({
       symbol: t.symbol,
-      hasTransactions: symbolsWithTx.includes(t.symbol),
+      hasTransactions: !!txSummary[t.symbol],
+      totalInvested: txSummary[t.symbol]?.totalInvested ?? 0,
+      totalShares: txSummary[t.symbol]?.totalShares ?? 0,
+      firstTransactedAt: txSummary[t.symbol]?.firstTransactedAt ?? null,
     }));
 
     return NextResponse.json({ latest, history: grouped, targets: targetsMeta });

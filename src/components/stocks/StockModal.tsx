@@ -10,14 +10,14 @@ interface StockTargetItem {
   id: number;
   symbol: string;
   name: string;
-  market: 'KOSPI' | 'KOSDAQ';
+  market: 'KOSPI' | 'KOSDAQ' | 'NYSE' | 'NASDAQ';
   created_at: string;
 }
 
 interface SearchResult {
   symbol: string;
   name: string;
-  market: 'KOSPI' | 'KOSDAQ';
+  market: 'KOSPI' | 'KOSDAQ' | 'NYSE' | 'NASDAQ';
 }
 
 interface StockModalProps {
@@ -41,6 +41,12 @@ export default function StockModal({ open, onClose }: StockModalProps) {
   const [selectedStock, setSelectedStock] = useState<SearchResult | null>(null);
   const [addError, setAddError] = useState('');
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null);
+
+  // Step wizard: 1 = 종목 선택, 2 = 투자 정보 입력
+  const [step, setStep] = useState<1 | 2>(1);
+  const [, setAdding] = useState(false);
+  const [newSymbol, setNewSymbol] = useState<string | null>(null);
+  const [newTxs, setNewTxs] = useState<StockTransaction[]>([]);
 
   const fetchTargets = useCallback(async () => {
     setTargetsLoading(true);
@@ -100,11 +106,25 @@ export default function StockModal({ open, onClose }: StockModalProps) {
     if (expandedSymbol) fetchTransactions(expandedSymbol);
   }
 
+  const fetchNewTxs = useCallback(async (symbol: string) => {
+    try {
+      const res = await fetch(`/api/stock-transactions?symbol=${encodeURIComponent(symbol)}`);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setNewTxs(data);
+    } catch {
+      setNewTxs([]);
+    }
+  }, []);
+
   function resetForm() {
     setSelectedStock(null);
     setSearchQuery('');
     setSearchResults([]);
     setAddError('');
+    setStep(1);
+    setNewSymbol(null);
+    setNewTxs([]);
   }
 
   function handleClose() {
@@ -135,12 +155,13 @@ export default function StockModal({ open, onClose }: StockModalProps) {
     }, 400);
   }
 
-  async function handleAdd() {
+  async function handleNext() {
     if (!selectedStock) {
       setAddError('검색 결과에서 종목을 선택해주세요.');
       return;
     }
     setAddError('');
+    setAdding(true);
     try {
       const res = await fetch('/api/stock-targets', {
         method: 'POST',
@@ -153,14 +174,26 @@ export default function StockModal({ open, onClose }: StockModalProps) {
       });
       const data = await res.json();
       if (!res.ok) {
-        setAddError(data.error || '추가 실패');
+        setAddError(data.error || '종목 추가 실패');
         return;
       }
-      resetForm();
+      setNewSymbol(selectedStock.symbol);
+      setStep(2);
       fetchTargets();
     } catch {
       setAddError('추가 중 오류가 발생했습니다.');
+    } finally {
+      setAdding(false);
     }
+  }
+
+  function handleNewTxAdded() {
+    if (newSymbol) fetchNewTxs(newSymbol);
+  }
+
+  function handleFinish() {
+    resetForm();
+    fetchTargets();
   }
 
   async function handleDelete(id: number) {
@@ -187,7 +220,7 @@ export default function StockModal({ open, onClose }: StockModalProps) {
       onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}
     >
       <div
-        className="glass-card animate-scale-in w-full max-w-[560px] overflow-auto rounded-2xl p-6"
+        className="glass-card animate-scale-in w-full max-w-[560px] overflow-auto rounded-2xl p-4 sm:p-6"
         style={{ maxHeight: '85vh', background: 'var(--bg-primary)', backdropFilter: 'blur(40px)' }}
       >
         {/* Header */}
@@ -215,22 +248,22 @@ export default function StockModal({ open, onClose }: StockModalProps) {
           {targets.map((t) => (
             <div key={t.id} className="glass-card mb-2 rounded-xl p-3">
               {/* Stock info row */}
-              <div className="flex items-center justify-between">
-                <div>
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0 truncate">
                   <span className="text-sm font-semibold text-text-primary">{t.name}</span>
-                  <span className="ml-2 text-xs text-text-muted">{t.symbol}</span>
-                  <span className="ml-2 text-[11px] text-text-muted">{t.market}</span>
+                  <span className="ml-1.5 text-xs text-text-muted">{t.symbol}</span>
+                  <span className="ml-1 text-[11px] text-text-muted">{t.market}</span>
                 </div>
-                <div className="flex gap-1">
+                <div className="flex shrink-0 gap-1">
                   <button
                     onClick={() => toggleExpand(t.symbol)}
-                    className="glass-card rounded-lg px-2.5 py-1 text-xs text-text-secondary transition-colors hover:text-text-primary"
+                    className="glass-card whitespace-nowrap rounded-lg px-2.5 py-1 text-xs text-text-secondary transition-colors hover:text-text-primary"
                   >
                     {expandedSymbol === t.symbol ? '접기' : '거래 내역'}
                   </button>
                   <button
                     onClick={() => handleDelete(t.id)}
-                    className="glass-card rounded-lg px-2.5 py-1 text-xs text-negative transition-colors hover:brightness-110"
+                    className="glass-card whitespace-nowrap rounded-lg px-2.5 py-1 text-xs text-negative transition-colors hover:brightness-110"
                   >
                     삭제
                   </button>
@@ -263,76 +296,124 @@ export default function StockModal({ open, onClose }: StockModalProps) {
 
         {/* Add stock */}
         <div className="border-t border-glass-border pt-5">
-          <h3 className="mb-2.5 text-[13px] font-semibold text-text-secondary">종목 추가</h3>
+          <h3 className="mb-2.5 text-[13px] font-semibold text-text-secondary">
+            종목 추가 {step === 2 && <span className="text-text-muted font-normal">· 투자 정보</span>}
+          </h3>
 
-          {/* Search */}
-          <div className="relative mb-2.5">
-            <input
-              type="text"
-              placeholder="종목명 또는 코드 검색 (예: 삼성전자, 005930)"
-              value={searchQuery}
-              onChange={(e) => handleSearch(e.target.value)}
-              className="glass-input w-full px-3 py-2.5 text-[13px]"
-            />
-            {searching && (
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-text-muted">
-                검색 중...
+          {step === 1 && (
+            <>
+              {/* Search */}
+              <div className="relative mb-2.5">
+                <input
+                  type="text"
+                  placeholder="종목명 또는 코드 검색 (예: 삼성전자, 005930)"
+                  value={searchQuery}
+                  onChange={(e) => handleSearch(e.target.value)}
+                  className="glass-input w-full px-3 py-2.5 text-[13px]"
+                />
+                {searching && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-text-muted">
+                    검색 중...
+                  </div>
+                )}
               </div>
-            )}
-          </div>
 
-          {/* Search results */}
-          {searchResults.length > 0 && !selectedStock && (
-            <div className="glass-card mb-2.5 max-h-48 overflow-auto rounded-xl">
-              {searchResults.map((r) => (
-                <button
-                  key={r.symbol}
-                  onClick={() => {
-                    setSelectedStock(r);
-                    setSearchQuery(`${r.name} (${r.symbol})`);
-                    setSearchResults([]);
-                  }}
-                  className="block w-full border-b border-glass-border px-3.5 py-2.5 text-left text-[13px] text-text-primary transition-colors hover:bg-glass-surface-hover"
-                >
-                  <span className="font-semibold">{r.name}</span>
-                  <span className="ml-2 text-xs text-text-muted">
-                    {r.symbol} · {r.market}
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
+              {/* Search results */}
+              {searchResults.length > 0 && !selectedStock && (
+                <div className="glass-card mb-2.5 max-h-48 overflow-auto rounded-xl">
+                  {searchResults.map((r) => (
+                    <button
+                      key={r.symbol}
+                      onClick={() => {
+                        setSelectedStock(r);
+                        setSearchQuery(`${r.name} (${r.symbol})`);
+                        setSearchResults([]);
+                      }}
+                      className="block w-full border-b border-glass-border px-3.5 py-2.5 text-left text-[13px] text-text-primary transition-colors hover:bg-glass-surface-hover"
+                    >
+                      <span className="font-semibold">{r.name}</span>
+                      <span className="ml-2 text-xs text-text-muted">
+                        {r.symbol} · {r.market}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
 
-          {/* Selected stock */}
-          {selectedStock && (
-            <div className="mb-2.5 flex items-center justify-between rounded-xl border border-accent/30 p-3" style={{ background: 'var(--accent-glow)' }}>
-              <div>
-                <span className="text-sm font-semibold text-text-primary">{selectedStock.name}</span>
-                <span className="ml-2 text-xs text-text-muted">
-                  {selectedStock.symbol} · {selectedStock.market}
-                </span>
-              </div>
+              {/* Selected stock */}
+              {selectedStock && (
+                <div className="mb-2.5 flex items-center justify-between rounded-xl border border-accent/30 p-3" style={{ background: 'var(--accent-glow)' }}>
+                  <div>
+                    <span className="text-sm font-semibold text-text-primary">{selectedStock.name}</span>
+                    <span className="ml-2 text-xs text-text-muted">
+                      {selectedStock.symbol} · {selectedStock.market}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => { setSelectedStock(null); setSearchQuery(''); }}
+                    className="text-sm text-text-muted hover:text-text-primary"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                      <line x1="4" y1="4" x2="12" y2="12" /><line x1="12" y1="4" x2="4" y2="12" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+
+              {addError && (
+                <div className="mb-2 text-xs text-negative">{addError}</div>
+              )}
+
               <button
-                onClick={() => { setSelectedStock(null); setSearchQuery(''); }}
-                className="text-sm text-text-muted hover:text-text-primary"
+                onClick={handleNext}
+                disabled={!selectedStock}
+                className="w-full rounded-xl bg-accent py-2.5 text-sm font-semibold text-white transition-all hover:brightness-110 active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                  <line x1="4" y1="4" x2="12" y2="12" /><line x1="12" y1="4" x2="4" y2="12" />
-                </svg>
+                다음
               </button>
-            </div>
+            </>
           )}
 
-          {addError && (
-            <div className="mb-2 text-xs text-negative">{addError}</div>
-          )}
+          {step === 2 && selectedStock && newSymbol && (
+            <>
+              {/* Selected stock info */}
+              <div className="mb-4 flex items-center justify-between rounded-xl border border-accent/30 p-3" style={{ background: 'var(--accent-glow)' }}>
+                <div>
+                  <span className="text-sm font-semibold text-text-primary">{selectedStock.name}</span>
+                  <span className="ml-2 text-xs text-text-muted">
+                    {selectedStock.symbol} · {selectedStock.market}
+                  </span>
+                </div>
+              </div>
 
-          <button
-            onClick={handleAdd}
-            className="w-full rounded-xl bg-accent py-2.5 text-sm font-semibold text-white transition-all hover:brightness-110 active:scale-[0.99]"
-          >
-            추가
-          </button>
+              {/* Transaction list + forms (same as expanded section) */}
+              <TransactionList
+                transactions={newTxs}
+                onDelete={async (id) => {
+                  await fetch(`/api/stock-transactions/${id}`, { method: 'DELETE' });
+                  fetchNewTxs(newSymbol);
+                }}
+                deleting={null}
+              />
+              <div className="mt-3 space-y-3 border-t border-glass-border pt-3">
+                <TransactionAddForm symbol={newSymbol} onAdded={handleNewTxAdded} />
+                <DCAForm symbol={newSymbol} onAdded={handleNewTxAdded} />
+              </div>
+
+              <button
+                onClick={handleFinish}
+                disabled={newTxs.length === 0}
+                className="mt-4 w-full rounded-xl bg-accent py-2.5 text-sm font-semibold text-white transition-all hover:brightness-110 active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                완료
+              </button>
+              {newTxs.length === 0 && (
+                <div className="mt-1.5 text-center text-[11px] text-text-muted">
+                  거래를 1건 이상 등록해주세요.
+                </div>
+              )}
+            </>
+          )}
         </div>
       </div>
     </div>

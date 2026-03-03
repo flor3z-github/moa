@@ -6,6 +6,7 @@ export interface StockPrice {
   id: number;
   symbol: string;
   name: string;
+  market?: string | null;
   price: number;
   open: number | null;
   high: number | null;
@@ -21,6 +22,9 @@ export interface StockPrice {
 export interface StockTargetMeta {
   symbol: string;
   hasTransactions: boolean;
+  totalInvested: number;
+  totalShares: number;
+  firstTransactedAt: string | null;
 }
 
 export function useStocks(days = 30) {

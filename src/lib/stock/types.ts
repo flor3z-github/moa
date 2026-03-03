@@ -15,7 +15,7 @@ export interface StockTarget {
   id?: number;
   symbol: string;
   name: string;
-  market: 'KOSPI' | 'KOSDAQ';
+  market: 'KOSPI' | 'KOSDAQ' | 'NYSE' | 'NASDAQ';
   initial_investment?: number | null;
   initial_price?: number | null;
   purchased_at?: string | null;
@@ -35,6 +35,16 @@ export interface StockTransaction {
 
 export interface MonthlyPortfolioData {
   yearMonth: string;
+  closePrice: number;
+  portfolioValue: number;
+  investedAmount: number;
+  profitLoss: number;
+  returnPct: number;
+  cumulativeShares: number;
+}
+
+export interface WeeklyPortfolioData {
+  weekStart: string; // YYYY-MM-DD (월요일)
   closePrice: number;
   portfolioValue: number;
   investedAmount: number;

@@ -31,9 +31,9 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!['KOSPI', 'KOSDAQ'].includes(market)) {
+    if (!['KOSPI', 'KOSDAQ', 'NYSE', 'NASDAQ'].includes(market)) {
       return NextResponse.json(
-        { error: 'market은 KOSPI 또는 KOSDAQ이어야 합니다.' },
+        { error: 'market은 KOSPI, KOSDAQ, NYSE, NASDAQ 중 하나여야 합니다.' },
         { status: 400 }
       );
     }
