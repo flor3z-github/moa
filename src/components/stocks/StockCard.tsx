@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import type { StockPrice } from '@/hooks/useStocks';
-import Sparkline from './Sparkline';
 
 const MonthlyReturnChart = dynamic(() => import('./MonthlyReturnChart'), {
   ssr: false,
@@ -66,11 +65,6 @@ export default function StockCard({ stock, history, index, hasTransactions, tota
     : hasPortfolio
       ? isProfitPositive ? 'var(--positive)' : isProfitNegative ? 'var(--negative)' : 'var(--accent)'
       : isPositive ? 'var(--positive)' : isNegative ? 'var(--negative)' : 'var(--accent)';
-
-  // Extract close prices for sparkline (oldest first)
-  const sparkPrices = history
-    ? [...history].reverse().map((h) => h.close)
-    : [];
 
   return (
     <div
@@ -141,18 +135,6 @@ export default function StockCard({ stock, history, index, hasTransactions, tota
           </div>
         </div>
 
-        {/* Sparkline */}
-        {!pending && sparkPrices.length >= 2 && (
-          <div className="mt-3 flex justify-end">
-            <Sparkline
-              prices={sparkPrices}
-              symbol={stock.symbol}
-              color={accentColor}
-              width={140}
-              height={36}
-            />
-          </div>
-        )}
 
         {/* Investment summary */}
         {!pending && hasPortfolio && (

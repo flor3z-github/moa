@@ -11,24 +11,26 @@ export async function GET(
     const { symbol } = await params;
     const supabase = createServerClient();
 
-    // 종목 정보 조회
-    const { data: target, error: targetError } = await supabase
-      .from('stock_targets')
-      .select('symbol, market')
-      .eq('symbol', symbol)
-      .single();
+    // 종목 정보 + 거래 내역 병렬 조회
+    const [targetRes, txRes] = await Promise.all([
+      supabase
+        .from('stock_targets')
+        .select('symbol, market')
+        .eq('symbol', symbol)
+        .single(),
+      supabase
+        .from('stock_transactions')
+        .select('quantity, amount, transacted_at')
+        .eq('symbol', symbol)
+        .order('transacted_at', { ascending: true }),
+    ]);
 
+    const { data: target, error: targetError } = targetRes;
     if (targetError || !target) {
       return NextResponse.json({ error: '종목을 찾을 수 없습니다.' }, { status: 404 });
     }
 
-    // 거래 내역 조회
-    const { data: transactions, error: txError } = await supabase
-      .from('stock_transactions')
-      .select('*')
-      .eq('symbol', symbol)
-      .order('transacted_at', { ascending: true });
-
+    const { data: transactions, error: txError } = txRes;
     if (txError) throw txError;
 
     if (!transactions || transactions.length === 0) {
@@ -52,7 +54,7 @@ export async function GET(
     // 캐시된 월간 데이터 조회
     const { data: cached } = await supabase
       .from('stock_monthly_prices')
-      .select('*')
+      .select('year_month, close_price, traded_at, fetched_at')
       .eq('symbol', symbol)
       .gte('year_month', months[0])
       .order('year_month', { ascending: true });
@@ -147,7 +149,11 @@ export async function GET(
       });
     }
 
-    return NextResponse.json({ data });
+    return NextResponse.json({ data }, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=7200',
+      },
+    });
   } catch (err: unknown) {
     console.error('[monthly-returns] 실패:', err);
     const message = err instanceof Error ? err.message : String(err);
