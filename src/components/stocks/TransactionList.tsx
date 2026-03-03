@@ -23,7 +23,7 @@ export default function TransactionList({ transactions, onDelete, deleting }: Tr
 
   return (
     <div className="max-h-48 overflow-auto">
-      <table className="w-full text-[12px]">
+      <table className="w-full min-w-[420px] text-[12px]">
         <thead>
           <tr className="text-text-muted">
             <th className="pb-1.5 text-left font-medium">날짜</th>

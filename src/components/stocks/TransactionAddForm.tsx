@@ -54,31 +54,31 @@ export default function TransactionAddForm({ symbol, onAdded }: TransactionAddFo
   return (
     <div>
       <div className="mb-1.5 text-[11px] font-medium text-text-muted">단건 매수 추가</div>
-      <div className="flex gap-1.5">
+      <div className="grid grid-cols-[1fr_auto] gap-1.5">
         <input
           type="date"
           value={date}
           onChange={(e) => setDate(e.target.value)}
-          className="glass-input flex-1 px-2 py-1.5 text-[12px]"
+          className="glass-input col-span-2 px-2 py-1.5 text-[12px] sm:col-span-1"
         />
         <input
           type="number"
           placeholder="금액(원)"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
-          className="glass-input w-24 px-2 py-1.5 text-[12px]"
+          className="glass-input px-2 py-1.5 text-[12px]"
         />
         <input
           type="number"
           placeholder="주가(원)"
           value={price}
           onChange={(e) => setPrice(e.target.value)}
-          className="glass-input w-24 px-2 py-1.5 text-[12px]"
+          className="glass-input px-2 py-1.5 text-[12px]"
         />
         <button
           onClick={handleSubmit}
           disabled={saving}
-          className="rounded-lg bg-accent px-3 py-1.5 text-[12px] font-semibold text-white transition-all hover:brightness-110 disabled:opacity-50"
+          className="col-span-2 rounded-lg bg-accent px-3 py-1.5 text-[12px] font-semibold text-white transition-all hover:brightness-110 disabled:opacity-50"
         >
           {saving ? '...' : '추가'}
         </button>

@@ -44,10 +44,9 @@ export default function StockModal({ open, onClose }: StockModalProps) {
 
   // Step wizard: 1 = 종목 선택, 2 = 투자 정보 입력
   const [step, setStep] = useState<1 | 2>(1);
-  const [investAmount, setInvestAmount] = useState('');
-  const [investPrice, setInvestPrice] = useState('');
-  const [investDate, setInvestDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [adding, setAdding] = useState(false);
+  const [newSymbol, setNewSymbol] = useState<string | null>(null);
+  const [newTxs, setNewTxs] = useState<StockTransaction[]>([]);
 
   const fetchTargets = useCallback(async () => {
     setTargetsLoading(true);
@@ -107,15 +106,25 @@ export default function StockModal({ open, onClose }: StockModalProps) {
     if (expandedSymbol) fetchTransactions(expandedSymbol);
   }
 
+  const fetchNewTxs = useCallback(async (symbol: string) => {
+    try {
+      const res = await fetch(`/api/stock-transactions?symbol=${encodeURIComponent(symbol)}`);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setNewTxs(data);
+    } catch {
+      setNewTxs([]);
+    }
+  }, []);
+
   function resetForm() {
     setSelectedStock(null);
     setSearchQuery('');
     setSearchResults([]);
     setAddError('');
     setStep(1);
-    setInvestAmount('');
-    setInvestPrice('');
-    setInvestDate(new Date().toISOString().slice(0, 10));
+    setNewSymbol(null);
+    setNewTxs([]);
   }
 
   function handleClose() {
@@ -146,38 +155,15 @@ export default function StockModal({ open, onClose }: StockModalProps) {
     }, 400);
   }
 
-  function handleNext() {
+  async function handleNext() {
     if (!selectedStock) {
       setAddError('검색 결과에서 종목을 선택해주세요.');
       return;
     }
     setAddError('');
-    setStep(2);
-  }
-
-  async function handleAdd() {
-    if (!selectedStock) return;
-
-    const amount = Number(investAmount);
-    const price = Number(investPrice);
-    if (!amount || amount <= 0) {
-      setAddError('투자 금액을 입력해주세요.');
-      return;
-    }
-    if (!price || price <= 0) {
-      setAddError('매수 단가를 입력해주세요.');
-      return;
-    }
-    if (!investDate) {
-      setAddError('매수일을 입력해주세요.');
-      return;
-    }
-
-    setAddError('');
     setAdding(true);
     try {
-      // 1) 종목 등록
-      const targetRes = await fetch('/api/stock-targets', {
+      const res = await fetch('/api/stock-targets', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -186,36 +172,28 @@ export default function StockModal({ open, onClose }: StockModalProps) {
           market: selectedStock.market,
         }),
       });
-      const targetData = await targetRes.json();
-      if (!targetRes.ok) {
-        setAddError(targetData.error || '종목 추가 실패');
+      const data = await res.json();
+      if (!res.ok) {
+        setAddError(data.error || '종목 추가 실패');
         return;
       }
-
-      // 2) 거래 등록
-      const txRes = await fetch('/api/stock-transactions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          symbol: selectedStock.symbol,
-          amount,
-          price,
-          transacted_at: investDate,
-        }),
-      });
-      if (!txRes.ok) {
-        const txData = await txRes.json();
-        setAddError(txData.error || '거래 등록 실패');
-        return;
-      }
-
-      resetForm();
+      setNewSymbol(selectedStock.symbol);
+      setStep(2);
       fetchTargets();
     } catch {
       setAddError('추가 중 오류가 발생했습니다.');
     } finally {
       setAdding(false);
     }
+  }
+
+  function handleNewTxAdded() {
+    if (newSymbol) fetchNewTxs(newSymbol);
+  }
+
+  function handleFinish() {
+    resetForm();
+    fetchTargets();
   }
 
   async function handleDelete(id: number) {
@@ -396,7 +374,7 @@ export default function StockModal({ open, onClose }: StockModalProps) {
             </>
           )}
 
-          {step === 2 && selectedStock && (
+          {step === 2 && selectedStock && newSymbol && (
             <>
               {/* Selected stock info */}
               <div className="mb-4 flex items-center justify-between rounded-xl border border-accent/30 p-3" style={{ background: 'var(--accent-glow)' }}>
@@ -408,61 +386,32 @@ export default function StockModal({ open, onClose }: StockModalProps) {
                 </div>
               </div>
 
-              {/* Investment form */}
-              <div className="space-y-2.5 mb-3">
-                <div>
-                  <label className="mb-1 block text-xs text-text-muted">투자 금액 (원)</label>
-                  <input
-                    type="number"
-                    placeholder="예: 1000000"
-                    value={investAmount}
-                    onChange={(e) => setInvestAmount(e.target.value)}
-                    className="glass-input w-full px-3 py-2.5 text-[13px]"
-                    min="1"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs text-text-muted">매수 단가 (원)</label>
-                  <input
-                    type="number"
-                    placeholder="예: 70000"
-                    value={investPrice}
-                    onChange={(e) => setInvestPrice(e.target.value)}
-                    className="glass-input w-full px-3 py-2.5 text-[13px]"
-                    min="1"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs text-text-muted">매수일</label>
-                  <input
-                    type="date"
-                    value={investDate}
-                    onChange={(e) => setInvestDate(e.target.value)}
-                    className="glass-input w-full px-3 py-2.5 text-[13px]"
-                  />
-                </div>
+              {/* Transaction list + forms (same as expanded section) */}
+              <TransactionList
+                transactions={newTxs}
+                onDelete={async (id) => {
+                  await fetch(`/api/stock-transactions/${id}`, { method: 'DELETE' });
+                  fetchNewTxs(newSymbol);
+                }}
+                deleting={null}
+              />
+              <div className="mt-3 space-y-3 border-t border-glass-border pt-3">
+                <TransactionAddForm symbol={newSymbol} onAdded={handleNewTxAdded} />
+                <DCAForm symbol={newSymbol} onAdded={handleNewTxAdded} />
               </div>
 
-              {addError && (
-                <div className="mb-2 text-xs text-negative">{addError}</div>
+              <button
+                onClick={handleFinish}
+                disabled={newTxs.length === 0}
+                className="mt-4 w-full rounded-xl bg-accent py-2.5 text-sm font-semibold text-white transition-all hover:brightness-110 active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                완료
+              </button>
+              {newTxs.length === 0 && (
+                <div className="mt-1.5 text-center text-[11px] text-text-muted">
+                  거래를 1건 이상 등록해주세요.
+                </div>
               )}
-
-              <div className="flex gap-2">
-                <button
-                  onClick={() => { setStep(1); setAddError(''); }}
-                  disabled={adding}
-                  className="glass-card flex-1 rounded-xl py-2.5 text-sm font-semibold text-text-secondary transition-all hover:text-text-primary active:scale-[0.99]"
-                >
-                  이전
-                </button>
-                <button
-                  onClick={handleAdd}
-                  disabled={adding}
-                  className="flex-1 rounded-xl bg-accent py-2.5 text-sm font-semibold text-white transition-all hover:brightness-110 active:scale-[0.99] disabled:opacity-60"
-                >
-                  {adding ? '추가 중...' : '추가'}
-                </button>
-              </div>
             </>
           )}
         </div>
