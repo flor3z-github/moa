@@ -22,6 +22,8 @@ export interface StockPrice {
 export interface StockTargetMeta {
   symbol: string;
   hasTransactions: boolean;
+  totalInvested: number;
+  totalShares: number;
 }
 
 export function useStocks(days = 30) {
