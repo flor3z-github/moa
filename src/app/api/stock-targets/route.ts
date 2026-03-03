@@ -39,6 +39,13 @@ export async function POST(request: Request) {
     }
 
     const supabase = createServerClient();
+
+    // 이전 등록에서 남아있을 수 있는 orphaned 가격 데이터 정리
+    await Promise.all([
+      supabase.from('stock_prices').delete().eq('symbol', symbol),
+      supabase.from('stock_monthly_prices').delete().eq('symbol', symbol),
+    ]);
+
     const { data, error } = await supabase
       .from('stock_targets')
       .insert({ symbol, name, market })

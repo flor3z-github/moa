@@ -34,11 +34,12 @@ export function useStocks(days = 30) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetch_ = useCallback(async () => {
+  const fetch_ = useCallback(async (bustCache = false) => {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch(`/api/stocks?days=${days}`);
+      const cacheBust = bustCache ? `&_t=${Date.now()}` : '';
+      const res = await fetch(`/api/stocks?days=${days}${cacheBust}`);
       if (!res.ok) throw new Error('데이터 조회 실패');
       const data = await res.json();
       setLatest(data.latest ?? []);
@@ -55,5 +56,5 @@ export function useStocks(days = 30) {
     fetch_();
   }, [fetch_]);
 
-  return { latest, history, targets, loading, error, refetch: fetch_ };
+  return { latest, history, targets, loading, error, refetch: () => fetch_(true) };
 }
