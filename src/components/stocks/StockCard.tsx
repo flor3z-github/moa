@@ -108,7 +108,7 @@ export default function StockCard({ stock, history, index, hasTransactions, tota
             ) : hasPortfolio ? (
               <>
                 <div className="text-lg font-bold text-text-primary">
-                  {formatPrice(currentValue)}
+                  {formatPrice(currentValue)}원
                 </div>
                 <span
                   className="inline-block rounded-full px-2 py-0.5 text-xs font-semibold"
