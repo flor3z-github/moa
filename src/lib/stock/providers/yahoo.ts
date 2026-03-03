@@ -10,6 +10,8 @@ export interface MonthlyHistoryItem {
 const MARKET_SUFFIX: Record<string, string> = {
   KOSPI: '.KS',
   KOSDAQ: '.KQ',
+  NYSE: '',
+  NASDAQ: '',
 };
 
 const CHART_API = 'https://query1.finance.yahoo.com/v8/finance/chart';
