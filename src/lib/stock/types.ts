@@ -15,7 +15,7 @@ export interface StockTarget {
   id?: number;
   symbol: string;
   name: string;
-  market: 'KOSPI' | 'KOSDAQ';
+  market: 'KOSPI' | 'KOSDAQ' | 'NYSE' | 'NASDAQ';
   initial_investment?: number | null;
   initial_price?: number | null;
   purchased_at?: string | null;
