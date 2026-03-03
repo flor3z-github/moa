@@ -8,7 +8,7 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { symbol, name, market, initial_investment, initial_price } = body;
+    const { symbol, name, market, initial_investment, initial_price, purchased_at } = body;
 
     if (market && !['KOSPI', 'KOSDAQ'].includes(market)) {
       return NextResponse.json(
@@ -23,6 +23,7 @@ export async function PUT(
     if (market !== undefined) updates.market = market;
     if (initial_investment !== undefined) updates.initial_investment = initial_investment;
     if (initial_price !== undefined) updates.initial_price = initial_price;
+    if (purchased_at !== undefined) updates.purchased_at = purchased_at;
 
     const supabase = createServerClient();
     const { data, error } = await supabase

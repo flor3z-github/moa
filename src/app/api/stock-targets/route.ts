@@ -21,7 +21,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { symbol, name, market, initial_investment, initial_price } = body;
+    const { symbol, name, market, initial_investment, initial_price, purchased_at } = body;
 
     if (!symbol || !name || !market) {
       return NextResponse.json(
@@ -46,6 +46,7 @@ export async function POST(request: Request) {
         market,
         initial_investment: initial_investment ?? null,
         initial_price: initial_price ?? null,
+        purchased_at: purchased_at ?? null,
       })
       .select()
       .single();

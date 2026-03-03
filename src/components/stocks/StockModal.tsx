@@ -9,6 +9,7 @@ interface StockTargetItem {
   market: 'KOSPI' | 'KOSDAQ';
   initial_investment: number | null;
   initial_price: number | null;
+  purchased_at: string | null;
   created_at: string;
 }
 
@@ -31,7 +32,7 @@ export default function StockModal({ open, onClose }: StockModalProps) {
   const [targets, setTargets] = useState<StockTargetItem[]>([]);
   const [targetsLoading, setTargetsLoading] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [editForm, setEditForm] = useState({ initial_investment: '', initial_price: '' });
+  const [editForm, setEditForm] = useState({ initial_investment: '', initial_price: '', purchased_at: '' });
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
@@ -39,6 +40,7 @@ export default function StockModal({ open, onClose }: StockModalProps) {
   const [selectedStock, setSelectedStock] = useState<SearchResult | null>(null);
   const [addInvestment, setAddInvestment] = useState('');
   const [addPrice, setAddPrice] = useState('');
+  const [addPurchasedAt, setAddPurchasedAt] = useState('');
   const [addError, setAddError] = useState('');
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null);
 
@@ -67,6 +69,7 @@ export default function StockModal({ open, onClose }: StockModalProps) {
     setSearchResults([]);
     setAddInvestment('');
     setAddPrice('');
+    setAddPurchasedAt('');
     setAddError('');
   }
 
@@ -112,6 +115,7 @@ export default function StockModal({ open, onClose }: StockModalProps) {
           market: selectedStock.market,
           initial_investment: addInvestment ? Number(addInvestment) : null,
           initial_price: addPrice ? Number(addPrice) : null,
+          purchased_at: addPurchasedAt || null,
         }),
       });
       const data = await res.json();
@@ -141,6 +145,7 @@ export default function StockModal({ open, onClose }: StockModalProps) {
     setEditForm({
       initial_investment: target.initial_investment?.toString() ?? '',
       initial_price: target.initial_price?.toString() ?? '',
+      purchased_at: target.purchased_at ?? '',
     });
   }
 
@@ -152,6 +157,7 @@ export default function StockModal({ open, onClose }: StockModalProps) {
         body: JSON.stringify({
           initial_investment: editForm.initial_investment ? Number(editForm.initial_investment) : null,
           initial_price: editForm.initial_price ? Number(editForm.initial_price) : null,
+          purchased_at: editForm.purchased_at || null,
         }),
       });
       if (!res.ok) throw new Error();
@@ -223,6 +229,14 @@ export default function StockModal({ open, onClose }: StockModalProps) {
                       className="glass-input flex-1 px-2.5 py-1.5 text-[13px]"
                     />
                   </div>
+                  <div className="mb-2">
+                    <input
+                      type="date"
+                      value={editForm.purchased_at}
+                      onChange={(e) => setEditForm({ ...editForm, purchased_at: e.target.value })}
+                      className="glass-input w-full px-2.5 py-1.5 text-[13px]"
+                    />
+                  </div>
                   <div className="flex justify-end gap-1.5">
                     <button
                       onClick={() => setEditingId(null)}
@@ -244,11 +258,13 @@ export default function StockModal({ open, onClose }: StockModalProps) {
                     <span className="text-sm font-semibold text-text-primary">{t.name}</span>
                     <span className="ml-2 text-xs text-text-muted">{t.symbol}</span>
                     <span className="ml-2 text-[11px] text-text-muted">{t.market}</span>
-                    {(t.initial_investment || t.initial_price) && (
+                    {(t.initial_investment || t.initial_price || t.purchased_at) && (
                       <div className="mt-0.5 text-[11px] text-text-muted">
                         {t.initial_investment && `투자금: ${formatPrice(t.initial_investment)}`}
                         {t.initial_investment && t.initial_price && ' · '}
                         {t.initial_price && `매입가: ${formatPrice(t.initial_price)}`}
+                        {(t.initial_investment || t.initial_price) && t.purchased_at && ' · '}
+                        {t.purchased_at && `매수일: ${t.purchased_at}`}
                       </div>
                     )}
                   </div>
@@ -349,6 +365,17 @@ export default function StockModal({ open, onClose }: StockModalProps) {
               value={addPrice}
               onChange={(e) => setAddPrice(e.target.value)}
               className="glass-input flex-1 px-2.5 py-2 text-[13px]"
+            />
+          </div>
+
+          {/* Purchase date */}
+          <div className="mb-2.5">
+            <input
+              type="date"
+              value={addPurchasedAt}
+              onChange={(e) => setAddPurchasedAt(e.target.value)}
+              className="glass-input w-full px-2.5 py-2 text-[13px]"
+              placeholder="매수일 (선택)"
             />
           </div>
 

@@ -1,18 +1,19 @@
 'use client';
 
-import type { StockPrice } from '@/hooks/useStocks';
+import type { StockPrice, StockTargetMeta } from '@/hooks/useStocks';
 import StockCard from './StockCard';
 import LoadingState from '@/components/ui/LoadingState';
 
 interface StockGridProps {
   latest: StockPrice[];
   history: Record<string, StockPrice[]>;
+  targets: StockTargetMeta[];
   loading: boolean;
   error: string | null;
   onOpenModal: () => void;
 }
 
-export default function StockGrid({ latest, history, loading, error, onOpenModal }: StockGridProps) {
+export default function StockGrid({ latest, history, targets, loading, error, onOpenModal }: StockGridProps) {
   return (
     <div>
       <div className="mb-3 flex justify-end">
@@ -43,14 +44,19 @@ export default function StockGrid({ latest, history, loading, error, onOpenModal
 
       {!loading && latest.length > 0 && (
         <div className="flex flex-col gap-3">
-          {latest.map((stock, i) => (
-            <StockCard
-              key={stock.symbol}
-              stock={stock}
-              history={history[stock.symbol]}
-              index={i}
-            />
-          ))}
+          {latest.map((stock, i) => {
+            const target = targets.find((t) => t.symbol === stock.symbol);
+            return (
+              <StockCard
+                key={stock.symbol}
+                stock={stock}
+                history={history[stock.symbol]}
+                index={i}
+                initialPrice={target?.initial_price}
+                purchasedAt={target?.purchased_at}
+              />
+            );
+          })}
 
           {latest[0]?.fetched_at && (
             <div className="mt-3 text-center text-[11px] text-text-muted">

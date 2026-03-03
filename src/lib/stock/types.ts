@@ -18,6 +18,13 @@ export interface StockTarget {
   market: 'KOSPI' | 'KOSDAQ';
   initial_investment?: number | null;
   initial_price?: number | null;
+  purchased_at?: string | null;
+}
+
+export interface MonthlyReturn {
+  yearMonth: string;
+  closePrice: number;
+  returnPct: number;
 }
 
 export const STOCK_TARGETS: StockTarget[] = [

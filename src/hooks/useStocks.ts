@@ -18,9 +18,16 @@ export interface StockPrice {
   fetched_at: string;
 }
 
+export interface StockTargetMeta {
+  symbol: string;
+  initial_price: number | null;
+  purchased_at: string | null;
+}
+
 export function useStocks(days = 30) {
   const [latest, setLatest] = useState<StockPrice[]>([]);
   const [history, setHistory] = useState<Record<string, StockPrice[]>>({});
+  const [targets, setTargets] = useState<StockTargetMeta[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,6 +40,7 @@ export function useStocks(days = 30) {
       const data = await res.json();
       setLatest(data.latest ?? []);
       setHistory(data.history ?? {});
+      setTargets(data.targets ?? []);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : '알 수 없는 오류');
     } finally {
@@ -44,5 +52,5 @@ export function useStocks(days = 30) {
     fetch_();
   }, [fetch_]);
 
-  return { latest, history, loading, error, refetch: fetch_ };
+  return { latest, history, targets, loading, error, refetch: fetch_ };
 }

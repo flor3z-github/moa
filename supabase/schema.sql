@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS stock_targets (
   market text NOT NULL CHECK (market IN ('KOSPI', 'KOSDAQ')),
   initial_investment numeric,
   initial_price numeric,
+  purchased_at date,
   created_at timestamptz DEFAULT now()
 );
 
@@ -56,6 +57,27 @@ CREATE POLICY "stock_targets_update" ON stock_targets
 
 CREATE POLICY "stock_targets_delete" ON stock_targets
   FOR DELETE USING (true);
+
+-- 월간 종가 캐시 테이블 (Yahoo 히스토리 데이터)
+CREATE TABLE IF NOT EXISTS stock_monthly_prices (
+  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  symbol text NOT NULL,
+  year_month text NOT NULL,
+  close_price numeric NOT NULL,
+  traded_at date NOT NULL,
+  fetched_at timestamptz DEFAULT now(),
+  UNIQUE(symbol, year_month)
+);
+
+CREATE INDEX IF NOT EXISTS idx_stock_monthly_symbol ON stock_monthly_prices (symbol);
+
+ALTER TABLE stock_monthly_prices ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "stock_monthly_prices_read" ON stock_monthly_prices
+  FOR SELECT USING (true);
+
+CREATE POLICY "stock_monthly_prices_insert" ON stock_monthly_prices
+  FOR INSERT WITH CHECK (true);
 
 -- ============================================
 -- 추후 확장용 (지금은 실행하지 않아도 됨)

@@ -11,7 +11,7 @@ export async function GET(request: Request) {
     // 등록된 종목 목록
     const { data: targets } = await supabase
       .from('stock_targets')
-      .select('symbol, name, market')
+      .select('symbol, name, market, initial_price, purchased_at')
       .order('created_at', { ascending: true });
 
     // 최근 N일간 주가 데이터
@@ -69,7 +69,7 @@ export async function GET(request: Request) {
       }
     }
 
-    return NextResponse.json({ latest, history: grouped });
+    return NextResponse.json({ latest, history: grouped, targets: targets ?? [] });
   } catch (err: any) {
     console.error('[api/stocks] 실패:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });

@@ -1,12 +1,20 @@
 'use client';
 
+import { useState } from 'react';
+import dynamic from 'next/dynamic';
 import type { StockPrice } from '@/hooks/useStocks';
 import Sparkline from './Sparkline';
+
+const MonthlyReturnChart = dynamic(() => import('./MonthlyReturnChart'), {
+  ssr: false,
+});
 
 interface StockCardProps {
   stock: StockPrice;
   history?: StockPrice[];
   index: number;
+  initialPrice?: number | null;
+  purchasedAt?: string | null;
 }
 
 function formatPrice(price: number) {
@@ -19,8 +27,10 @@ function formatVolume(volume: number) {
   return volume.toString();
 }
 
-export default function StockCard({ stock, history, index }: StockCardProps) {
+export default function StockCard({ stock, history, index, initialPrice, purchasedAt }: StockCardProps) {
+  const [expanded, setExpanded] = useState(false);
   const pending = !stock.fetched_at;
+  const canExpand = !pending && !!purchasedAt && !!initialPrice;
   const isPositive = stock.change_percent !== null && stock.change_percent > 0;
   const isNegative = stock.change_percent !== null && stock.change_percent < 0;
   const accentColor = pending ? 'var(--text-muted)' : isPositive ? 'var(--positive)' : isNegative ? 'var(--negative)' : 'var(--accent)';
@@ -117,6 +127,39 @@ export default function StockCard({ stock, history, index }: StockCardProps) {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Monthly return expand toggle */}
+        {canExpand && (
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="mt-3 flex w-full items-center justify-center gap-1 border-t border-glass-border pt-2.5 text-[11px] text-text-muted transition-colors hover:text-text-secondary"
+          >
+            <span>월간 수익률</span>
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 12 12"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{
+                transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                transition: 'transform 0.2s ease',
+              }}
+            >
+              <path d="M3 4.5L6 7.5L9 4.5" />
+            </svg>
+          </button>
+        )}
+
+        {/* Monthly return chart */}
+        {canExpand && expanded && (
+          <div className="animate-fade-in mt-2 border-t border-glass-border pt-3">
+            <MonthlyReturnChart symbol={stock.symbol} />
           </div>
         )}
       </div>
