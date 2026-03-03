@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS stock_targets (
   id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   symbol text NOT NULL UNIQUE,
   name text NOT NULL,
-  market text NOT NULL CHECK (market IN ('KOSPI', 'KOSDAQ')),
+  market text NOT NULL CHECK (market IN ('KOSPI', 'KOSDAQ', 'NYSE', 'NASDAQ')),
   initial_investment numeric,
   initial_price numeric,
   purchased_at date,

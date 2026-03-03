@@ -10,14 +10,14 @@ interface StockTargetItem {
   id: number;
   symbol: string;
   name: string;
-  market: 'KOSPI' | 'KOSDAQ';
+  market: 'KOSPI' | 'KOSDAQ' | 'NYSE' | 'NASDAQ';
   created_at: string;
 }
 
 interface SearchResult {
   symbol: string;
   name: string;
-  market: 'KOSPI' | 'KOSDAQ';
+  market: 'KOSPI' | 'KOSDAQ' | 'NYSE' | 'NASDAQ';
 }
 
 interface StockModalProps {

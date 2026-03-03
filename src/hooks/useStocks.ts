@@ -6,6 +6,7 @@ export interface StockPrice {
   id: number;
   symbol: string;
   name: string;
+  market?: string | null;
   price: number;
   open: number | null;
   high: number | null;

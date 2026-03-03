@@ -64,7 +64,7 @@ export default function StockCard({ stock, history, index, hasTransactions }: St
                   border: '1px solid var(--glass-border)',
                 }}
               >
-                {stock.symbol.endsWith('.KQ') ? 'KOSDAQ' : 'KOSPI'}
+                {stock.market ?? 'KOSPI'}
               </span>
             </div>
           </div>

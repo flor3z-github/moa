@@ -46,14 +46,20 @@ export async function GET(request: Request) {
     const latest: any[] = [];
     const registeredSymbols = (targets ?? []).map((t: any) => t.symbol);
 
+    const targetMarketMap: Record<string, string> = {};
+    for (const t of targets ?? []) {
+      targetMarketMap[t.symbol] = t.market;
+    }
+
     for (const t of targets ?? []) {
       if (grouped[t.symbol]?.length > 0) {
-        latest.push(grouped[t.symbol][0]);
+        latest.push({ ...grouped[t.symbol][0], market: t.market });
       } else {
         latest.push({
           id: null,
           symbol: t.symbol,
           name: t.name,
+          market: t.market,
           price: 0,
           open: null,
           high: null,
@@ -71,7 +77,7 @@ export async function GET(request: Request) {
     // stock_targets에 없지만 stock_prices에 데이터가 있는 종목도 포함
     for (const [symbol, rows] of Object.entries(grouped)) {
       if (!registeredSymbols.includes(symbol)) {
-        latest.push(rows[0]);
+        latest.push({ ...rows[0], market: targetMarketMap[symbol] ?? null });
       }
     }
 
