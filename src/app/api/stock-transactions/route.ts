@@ -19,11 +19,7 @@ export async function GET(request: Request) {
       .order('transacted_at', { ascending: true });
 
     if (error) throw error;
-    return NextResponse.json(data ?? [], {
-      headers: {
-        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
-      },
-    });
+    return NextResponse.json(data ?? []);
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
