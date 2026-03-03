@@ -21,7 +21,7 @@ export async function GET(
     // 거래 내역 조회
     const { data: transactions, error: txError } = await supabase
       .from('stock_transactions')
-      .select('*')
+      .select('quantity, amount, transacted_at')
       .eq('symbol', symbol)
       .order('transacted_at', { ascending: true });
 
@@ -89,7 +89,11 @@ export async function GET(
       });
     }
 
-    return NextResponse.json({ data });
+    return NextResponse.json({ data }, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=7200',
+      },
+    });
   } catch (err: any) {
     console.error('[weekly-returns] 실패:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });

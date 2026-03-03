@@ -8,11 +8,15 @@ export async function GET() {
     const supabase = createServerClient();
     const { data, error } = await supabase
       .from('stock_targets')
-      .select('*')
+      .select('id, symbol, name, market, created_at')
       .order('created_at', { ascending: true });
 
     if (error) throw error;
-    return NextResponse.json(data);
+    return NextResponse.json(data, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
+      },
+    });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
@@ -54,35 +58,39 @@ export async function POST(request: Request) {
       throw error;
     }
 
-    // 종목 추가 후 즉시 가격 수집
-    try {
-      const providerType = (process.env.STOCK_PROVIDER ?? 'yahoo') as ProviderType;
-      const provider = createStockProvider(providerType);
-      const target: StockTarget = { symbol, name, market };
-      const quotes = await provider.fetchQuotes([target]);
+    // 종목 추가 후 가격 수집 (응답을 블로킹하지 않음)
+    const fetchPriceInBackground = async () => {
+      try {
+        const providerType = (process.env.STOCK_PROVIDER ?? 'yahoo') as ProviderType;
+        const provider = createStockProvider(providerType);
+        const target: StockTarget = { symbol, name, market };
+        const quotes = await provider.fetchQuotes([target]);
 
-      if (quotes.length > 0) {
-        const rows = quotes.map((q) => ({
-          symbol: q.symbol,
-          name: q.name,
-          price: q.price,
-          open: q.open,
-          high: q.high,
-          low: q.low,
-          close: q.close,
-          volume: q.volume,
-          change_percent: q.change_percent,
-          traded_at: q.traded_at,
-          provider: provider.name,
-        }));
-        await supabase
-          .from('stock_prices')
-          .upsert(rows, { onConflict: 'symbol,traded_at' });
+        if (quotes.length > 0) {
+          const rows = quotes.map((q) => ({
+            symbol: q.symbol,
+            name: q.name,
+            price: q.price,
+            open: q.open,
+            high: q.high,
+            low: q.low,
+            close: q.close,
+            volume: q.volume,
+            change_percent: q.change_percent,
+            traded_at: q.traded_at,
+            provider: provider.name,
+          }));
+          await supabase
+            .from('stock_prices')
+            .upsert(rows, { onConflict: 'symbol,traded_at' });
+        }
+      } catch (fetchErr) {
+        console.error('[stock-targets] 가격 수집 실패:', fetchErr);
       }
-    } catch (fetchErr) {
-      console.error('[stock-targets] 가격 수집 실패:', fetchErr);
-      // 가격 수집 실패해도 종목 등록은 성공으로 반환
-    }
+    };
+
+    // waitUntil이 없는 환경에서도 안전하게 실행
+    fetchPriceInBackground();
 
     return NextResponse.json(data, { status: 201 });
   } catch (err: any) {

@@ -14,12 +14,16 @@ export async function GET(request: Request) {
     const supabase = createServerClient();
     const { data, error } = await supabase
       .from('stock_transactions')
-      .select('*')
+      .select('id, symbol, type, amount, price, quantity, transacted_at, source')
       .eq('symbol', symbol)
       .order('transacted_at', { ascending: true });
 
     if (error) throw error;
-    return NextResponse.json(data ?? []);
+    return NextResponse.json(data ?? [], {
+      headers: {
+        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
+      },
+    });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
@@ -31,26 +35,28 @@ async function lookupPrice(
   market: string,
   date: string
 ): Promise<number | null> {
-  // 1) stock_prices 테이블에서 해당 날짜 조회
-  const { data: priceRow } = await supabase
-    .from('stock_prices')
-    .select('close')
-    .eq('symbol', symbol)
-    .eq('traded_at', date)
-    .single();
-  if (priceRow?.close) return Number(priceRow.close);
-
-  // 2) stock_monthly_prices에서 해당 월 조회
   const ym = date.slice(0, 7);
-  const { data: monthRow } = await supabase
-    .from('stock_monthly_prices')
-    .select('close_price')
-    .eq('symbol', symbol)
-    .eq('year_month', ym)
-    .single();
+
+  // 1) stock_prices + stock_monthly_prices 병렬 조회
+  const [{ data: priceRow }, { data: monthRow }] = await Promise.all([
+    supabase
+      .from('stock_prices')
+      .select('close')
+      .eq('symbol', symbol)
+      .eq('traded_at', date)
+      .single(),
+    supabase
+      .from('stock_monthly_prices')
+      .select('close_price')
+      .eq('symbol', symbol)
+      .eq('year_month', ym)
+      .single(),
+  ]);
+
+  if (priceRow?.close) return Number(priceRow.close);
   if (monthRow?.close_price) return Number(monthRow.close_price);
 
-  // 3) Yahoo에서 일별 가격 fetch
+  // 2) DB에 없으면 Yahoo에서 일별 가격 fetch
   const yahoo = await fetchDailyPrice(symbol, market, date);
   return yahoo?.close ?? null;
 }
