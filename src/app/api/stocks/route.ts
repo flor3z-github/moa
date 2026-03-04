@@ -1,12 +1,20 @@
 import { NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/db';
+import { createAuthClient, createServiceClient } from '@/lib/db';
+import { getAuthUserId } from '@/lib/auth';
+import { decryptTransaction } from '@/lib/crypto';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const days = parseInt(searchParams.get('days') ?? '30');
 
   try {
-    const supabase = createServerClient();
+    const userId = await getAuthUserId();
+    if (!userId) {
+      return NextResponse.json({ error: '인증이 필요합니다.' }, { status: 401 });
+    }
+
+    const supabase = await createAuthClient();
+    const serviceClient = createServiceClient();
 
     const cutoffDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
       .toISOString()
@@ -20,8 +28,8 @@ export async function GET(request: Request) {
         .order('created_at', { ascending: true }),
       supabase
         .from('stock_transactions')
-        .select('symbol, amount, quantity, transacted_at'),
-      supabase
+        .select('symbol, amount, price, quantity, transacted_at'),
+      serviceClient
         .from('stock_prices')
         .select('symbol, name, price, close, change_percent, volume, traded_at, fetched_at, provider')
         .gte('traded_at', cutoffDate)
@@ -35,26 +43,31 @@ export async function GET(request: Request) {
 
     if (error) throw error;
 
+    // 거래 요약 계산 (암호화된 필드 복호화)
     const txSummary: Record<string, { totalInvested: number; totalShares: number; firstTransactedAt: string | null }> = {};
     for (const tx of txRows ?? []) {
+      const decrypted = decryptTransaction(tx as unknown as { amount: string; price: string; quantity: string });
       if (!txSummary[tx.symbol]) txSummary[tx.symbol] = { totalInvested: 0, totalShares: 0, firstTransactedAt: null };
-      txSummary[tx.symbol].totalInvested += Number(tx.amount);
-      txSummary[tx.symbol].totalShares += Number(tx.quantity);
+      txSummary[tx.symbol].totalInvested += decrypted.amount;
+      txSummary[tx.symbol].totalShares += decrypted.quantity;
       const d = tx.transacted_at as string;
       if (!txSummary[tx.symbol].firstTransactedAt || d < txSummary[tx.symbol].firstTransactedAt!) {
         txSummary[tx.symbol].firstTransactedAt = d;
       }
     }
 
+    // 유저의 종목에 해당하는 가격만 필터링
+    const userSymbols = new Set((targets ?? []).map((t: { symbol: string }) => t.symbol));
+
     // 종목별로 그룹핑
     const grouped: Record<string, Record<string, unknown>[]> = {};
     for (const row of data ?? []) {
+      if (!userSymbols.has(row.symbol)) continue;
       if (!grouped[row.symbol]) grouped[row.symbol] = [];
       grouped[row.symbol].push(row);
     }
 
     // 최신 데이터 (종목별 가장 최근 1건)
-    // 가격 데이터가 있는 종목은 그대로, 없는 종목은 등록 정보로 placeholder 생성
     const latest: Record<string, unknown>[] = [];
 
     for (const t of targets ?? []) {
@@ -88,7 +101,7 @@ export async function GET(request: Request) {
       { latest, history: grouped, targets: targetsMeta },
       {
         headers: {
-          'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
+          'Cache-Control': 'private, no-store',
         },
       }
     );

@@ -1,11 +1,17 @@
 import { NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/db';
+import { createAuthClient, createServiceClient } from '@/lib/db';
+import { getAuthUserId } from '@/lib/auth';
 import { createStockProvider, type ProviderType } from '@/lib/stock';
 import type { StockTarget } from '@/lib/stock';
 
 export async function GET() {
   try {
-    const supabase = createServerClient();
+    const userId = await getAuthUserId();
+    if (!userId) {
+      return NextResponse.json({ error: '인증이 필요합니다.' }, { status: 401 });
+    }
+
+    const supabase = await createAuthClient();
     const { data, error } = await supabase
       .from('stock_targets')
       .select('id, symbol, name, market, created_at')
@@ -21,6 +27,11 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const userId = await getAuthUserId();
+    if (!userId) {
+      return NextResponse.json({ error: '인증이 필요합니다.' }, { status: 401 });
+    }
+
     const body = await request.json();
     const { symbol, name, market } = body;
 
@@ -38,17 +49,18 @@ export async function POST(request: Request) {
       );
     }
 
-    const supabase = createServerClient();
+    const supabase = await createAuthClient();
+    const serviceClient = createServiceClient();
 
     // 이전 등록에서 남아있을 수 있는 orphaned 가격 데이터 정리
     await Promise.all([
-      supabase.from('stock_prices').delete().eq('symbol', symbol),
-      supabase.from('stock_monthly_prices').delete().eq('symbol', symbol),
+      serviceClient.from('stock_prices').delete().eq('symbol', symbol),
+      serviceClient.from('stock_monthly_prices').delete().eq('symbol', symbol),
     ]);
 
     const { data, error } = await supabase
       .from('stock_targets')
-      .insert({ symbol, name, market })
+      .insert({ user_id: userId, symbol, name, market })
       .select()
       .single();
 
@@ -84,7 +96,7 @@ export async function POST(request: Request) {
             traded_at: q.traded_at,
             provider: provider.name,
           }));
-          await supabase
+          await serviceClient
             .from('stock_prices')
             .upsert(rows, { onConflict: 'symbol,traded_at' });
         }
@@ -93,7 +105,6 @@ export async function POST(request: Request) {
       }
     };
 
-    // waitUntil이 없는 환경에서도 안전하게 실행
     fetchPriceInBackground();
 
     return NextResponse.json(data, { status: 201 });

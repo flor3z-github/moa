@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/db';
+import { createAuthClient, createServiceClient } from '@/lib/db';
+import { getAuthUserId } from '@/lib/auth';
+import { decryptTransaction } from '@/lib/crypto';
 import type { WeeklyPortfolioData } from '@/lib/stock/types';
 
 function getWeekStart(dateStr: string): string {
@@ -15,24 +17,36 @@ export async function GET(
   { params }: { params: Promise<{ symbol: string }> }
 ) {
   try {
-    const { symbol } = await params;
-    const supabase = createServerClient();
+    const userId = await getAuthUserId();
+    if (!userId) {
+      return NextResponse.json({ error: '인증이 필요합니다.' }, { status: 401 });
+    }
 
-    // 거래 내역 조회
-    const { data: transactions, error: txError } = await supabase
+    const { symbol } = await params;
+    const supabase = await createAuthClient();
+    const serviceClient = createServiceClient();
+
+    // 거래 내역 조회 (RLS로 본인 데이터만)
+    const { data: rawTransactions, error: txError } = await supabase
       .from('stock_transactions')
-      .select('quantity, amount, transacted_at')
+      .select('quantity, amount, price, transacted_at')
       .eq('symbol', symbol)
       .order('transacted_at', { ascending: true });
 
     if (txError) throw txError;
-    if (!transactions || transactions.length === 0) {
+    if (!rawTransactions || rawTransactions.length === 0) {
       return NextResponse.json({ data: [] });
     }
 
-    // 일별 주가 데이터 조회 (첫 거래일부터)
-    const earliestDate = transactions[0].transacted_at;
-    const { data: prices, error: priceError } = await supabase
+    // 암호화된 거래 복호화
+    const transactions = rawTransactions.map((row) => {
+      const r = row as unknown as { amount: string; price: string; quantity: string; transacted_at: string };
+      return decryptTransaction(r);
+    });
+
+    // 일별 주가 데이터 조회 (첫 거래일부터) — 공유 데이터
+    const earliestDate = transactions[0].transacted_at as string;
+    const { data: prices, error: priceError } = await serviceClient
       .from('stock_prices')
       .select('close, traded_at')
       .eq('symbol', symbol)
@@ -60,14 +74,13 @@ export async function GET(
     const sortedWeeks = [...weeklyPrices.keys()].sort();
 
     for (const week of sortedWeeks) {
-      // 해당 주까지의 거래 누적
       const weekEnd = new Date(week);
       weekEnd.setDate(weekEnd.getDate() + 6);
       const weekEndStr = weekEnd.toISOString().split('T')[0];
 
-      while (txIdx < transactions.length && transactions[txIdx].transacted_at <= weekEndStr) {
-        cumulativeShares += Number(transactions[txIdx].quantity);
-        investedAmount += Number(transactions[txIdx].amount);
+      while (txIdx < transactions.length && (transactions[txIdx].transacted_at as string) <= weekEndStr) {
+        cumulativeShares += transactions[txIdx].quantity;
+        investedAmount += transactions[txIdx].amount;
         txIdx++;
       }
 
@@ -91,7 +104,7 @@ export async function GET(
 
     return NextResponse.json({ data }, {
       headers: {
-        'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=7200',
+        'Cache-Control': 'private, no-store',
       },
     });
   } catch (err: unknown) {

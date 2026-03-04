@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/db';
+import { createServiceClient } from '@/lib/db';
 import { createStockProvider, ProviderType } from '@/lib/stock';
 import type { StockTarget } from '@/lib/stock';
 
@@ -14,7 +14,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const supabase = createServerClient();
+    const supabase = createServiceClient();
     const providerType = (process.env.STOCK_PROVIDER ?? 'yahoo') as ProviderType;
     const provider = createStockProvider(providerType);
 
