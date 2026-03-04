@@ -20,23 +20,34 @@ export async function GET(request: Request) {
       .toISOString()
       .split('T')[0];
 
-    // 3개 쿼리 병렬 실행
-    const [targetsRes, txRes, pricesRes] = await Promise.all([
-      supabase
-        .from('stock_targets')
-        .select('symbol, name, market')
-        .order('created_at', { ascending: true }),
+    // Phase 1: 유저 종목 먼저 조회 (가격 쿼리 필터링에 필요)
+    const { data: targets } = await supabase
+      .from('stock_targets')
+      .select('symbol, name, market')
+      .order('created_at', { ascending: true });
+
+    const symbols = (targets ?? []).map((t: { symbol: string }) => t.symbol);
+
+    if (symbols.length === 0) {
+      return NextResponse.json(
+        { latest: [], history: {}, targets: [] },
+        { headers: { 'Cache-Control': 'private, no-store' } }
+      );
+    }
+
+    // Phase 2: 거래내역 + 유저 종목 가격만 병렬 조회
+    const [txRes, pricesRes] = await Promise.all([
       supabase
         .from('stock_transactions')
         .select('symbol, amount, price, quantity, transacted_at'),
       serviceClient
         .from('stock_prices')
         .select('symbol, name, price, close, change_percent, volume, traded_at, fetched_at, provider')
+        .in('symbol', symbols)
         .gte('traded_at', cutoffDate)
         .order('traded_at', { ascending: false }),
     ]);
 
-    const targets = targetsRes.data;
     const txRows = txRes.data;
     const data = pricesRes.data;
     const error = pricesRes.error;
@@ -56,13 +67,9 @@ export async function GET(request: Request) {
       }
     }
 
-    // 유저의 종목에 해당하는 가격만 필터링
-    const userSymbols = new Set((targets ?? []).map((t: { symbol: string }) => t.symbol));
-
-    // 종목별로 그룹핑
+    // 종목별로 그룹핑 (DB에서 이미 유저 종목만 필터링됨)
     const grouped: Record<string, Record<string, unknown>[]> = {};
     for (const row of data ?? []) {
-      if (!userSymbols.has(row.symbol)) continue;
       if (!grouped[row.symbol]) grouped[row.symbol] = [];
       grouped[row.symbol].push(row);
     }

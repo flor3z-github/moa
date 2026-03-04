@@ -26,35 +26,38 @@ export async function GET(
     const supabase = await createAuthClient();
     const serviceClient = createServiceClient();
 
-    // 거래 내역 조회 (RLS로 본인 데이터만)
-    const { data: rawTransactions, error: txError } = await supabase
-      .from('stock_transactions')
-      .select('quantity, amount, price, transacted_at')
-      .eq('symbol', symbol)
-      .order('transacted_at', { ascending: true });
+    // 거래 내역 + 일별 주가 병렬 조회
+    const [txRes, priceRes] = await Promise.all([
+      supabase
+        .from('stock_transactions')
+        .select('quantity, amount, price, transacted_at')
+        .eq('symbol', symbol)
+        .order('transacted_at', { ascending: true }),
+      serviceClient
+        .from('stock_prices')
+        .select('close, traded_at')
+        .eq('symbol', symbol)
+        .order('traded_at', { ascending: true }),
+    ]);
 
-    if (txError) throw txError;
-    if (!rawTransactions || rawTransactions.length === 0) {
+    if (txRes.error) throw txRes.error;
+    if (!txRes.data || txRes.data.length === 0) {
       return NextResponse.json({ data: [] });
     }
 
     // 암호화된 거래 복호화
-    const transactions = rawTransactions.map((row) => {
+    const transactions = txRes.data.map((row) => {
       const r = row as unknown as { amount: string; price: string; quantity: string; transacted_at: string };
       return decryptTransaction(r);
     });
 
-    // 일별 주가 데이터 조회 (첫 거래일부터) — 공유 데이터
-    const earliestDate = transactions[0].transacted_at as string;
-    const { data: prices, error: priceError } = await serviceClient
-      .from('stock_prices')
-      .select('close, traded_at')
-      .eq('symbol', symbol)
-      .gte('traded_at', earliestDate)
-      .order('traded_at', { ascending: true });
+    if (priceRes.error) throw priceRes.error;
 
-    if (priceError) throw priceError;
-    if (!prices || prices.length === 0) {
+    // 첫 거래일 이후의 가격만 사용
+    const earliestDate = transactions[0].transacted_at as string;
+    const prices = (priceRes.data ?? []).filter((p) => p.traded_at >= earliestDate);
+
+    if (prices.length === 0) {
       return NextResponse.json({ data: [] });
     }
 
