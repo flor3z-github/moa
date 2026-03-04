@@ -163,6 +163,12 @@ body {
   }
 }
 
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @keyframes scale-in {
   from {
     opacity: 0;

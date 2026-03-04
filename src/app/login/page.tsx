@@ -266,7 +266,20 @@ export default function LoginPage() {
               transition: 'opacity 0.2s',
             }}
           >
-            {loading ? '...' : '시작하기'}
+            {loading ? (
+              <span
+                style={{
+                  display: 'inline-block',
+                  width: 16,
+                  height: 16,
+                  border: '2px solid rgba(255,255,255,0.3)',
+                  borderTopColor: '#fff',
+                  borderRadius: '50%',
+                  animation: 'spin 0.6s linear infinite',
+                  verticalAlign: 'middle',
+                }}
+              />
+            ) : '시작하기'}
           </button>
         </form>
 

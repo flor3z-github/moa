@@ -81,6 +81,15 @@ export default function StockModal({ open, onClose }: StockModalProps) {
     if (open) fetchTargets();
   }, [open, fetchTargets]);
 
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') handleClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+
   function toggleExpand(symbol: string) {
     if (expandedSymbol === symbol) {
       setExpandedSymbol(null);
