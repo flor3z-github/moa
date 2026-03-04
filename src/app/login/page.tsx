@@ -13,11 +13,12 @@ export default function LoginPage() {
   const [notice, setNotice] = useState('');
   const [nickFocused, setNickFocused] = useState(false);
   const [tagFocused, setTagFocused] = useState(false);
+  const nicknameRef = useRef<HTMLInputElement>(null);
   const pinRefs = useRef<(HTMLInputElement | null)[]>([]);
   const tagRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    pinRefs.current[0]?.focus();
+    nicknameRef.current?.focus();
   }, []);
 
   const handlePinChange = (index: number, value: string) => {
@@ -58,11 +59,6 @@ export default function LoginPage() {
       if (!res.ok) {
         setError(data.error || '오류가 발생했습니다.');
         return;
-      }
-
-      if (data.isNew) {
-        setNotice(`${data.user.nickname}#${data.user.tag} 계정이 생성되었습니다`);
-        await new Promise((r) => setTimeout(r, 1200));
       }
 
       router.push('/');
@@ -144,6 +140,7 @@ export default function LoginPage() {
               }}
             >
               <input
+                ref={nicknameRef}
                 type="text"
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
