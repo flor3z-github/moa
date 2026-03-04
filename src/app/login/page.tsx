@@ -11,6 +11,8 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState('');
+  const [nickFocused, setNickFocused] = useState(false);
+  const [tagFocused, setTagFocused] = useState(false);
   const pinRefs = useRef<(HTMLInputElement | null)[]>([]);
   const tagRef = useRef<HTMLInputElement | null>(null);
 
@@ -128,36 +130,53 @@ export default function LoginPage() {
             >
               닉네임
             </label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                background: 'var(--glass-surface)',
+                border: `1px solid ${nickFocused || tagFocused ? 'var(--accent)' : 'var(--glass-border)'}`,
+                borderRadius: 10,
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+                transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
+                boxShadow: nickFocused || tagFocused ? '0 0 0 2px var(--accent-glow)' : 'none',
+              }}
+            >
               <input
-                className="glass-input"
                 type="text"
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
+                onFocus={() => setNickFocused(true)}
+                onBlur={() => setNickFocused(false)}
                 placeholder="닉네임"
                 maxLength={20}
                 style={{
                   flex: 1,
                   padding: '10px 14px',
                   fontSize: 14,
-                  borderTopRightRadius: 0,
-                  borderBottomRightRadius: 0,
+                  background: 'transparent',
+                  border: 'none',
+                  outline: 'none',
+                  color: 'var(--text-primary)',
+                  fontFamily: 'var(--sans)',
+                  minWidth: 0,
                 }}
               />
               <span
                 style={{
-                  padding: '10px 6px',
-                  fontSize: 16,
-                  fontWeight: 700,
+                  fontSize: 15,
+                  fontWeight: 600,
                   color: 'var(--text-muted)',
                   userSelect: 'none',
+                  flexShrink: 0,
+                  opacity: 0.6,
                 }}
               >
                 #
               </span>
               <input
                 ref={tagRef}
-                className="glass-input"
                 type="text"
                 inputMode="numeric"
                 value={tag}
@@ -165,19 +184,24 @@ export default function LoginPage() {
                   const v = e.target.value.replace(/\D/g, '');
                   if (v.length <= 4) setTag(v);
                 }}
-                placeholder="태그"
+                onFocus={() => setTagFocused(true)}
+                onBlur={() => setTagFocused(false)}
+                placeholder="0000"
                 maxLength={4}
                 style={{
-                  width: 72,
-                  padding: '10px 10px',
+                  width: 52,
+                  padding: '10px 12px 10px 4px',
                   fontSize: 14,
                   fontFamily: 'var(--mono)',
-                  borderTopLeftRadius: 0,
-                  borderBottomLeftRadius: 0,
+                  background: 'transparent',
+                  border: 'none',
+                  outline: 'none',
+                  color: 'var(--text-primary)',
+                  letterSpacing: '0.05em',
                 }}
               />
             </div>
-            <p style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
+            <p style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 6, paddingLeft: 2 }}>
               처음이면 태그를 비워두세요
             </p>
           </div>
