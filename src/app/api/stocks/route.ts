@@ -108,7 +108,7 @@ export async function GET(request: Request) {
       { latest, history: grouped, targets: targetsMeta },
       {
         headers: {
-          'Cache-Control': 'private, no-store',
+          'Cache-Control': 'private, max-age=30, stale-while-revalidate=300',
         },
       }
     );

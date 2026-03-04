@@ -13,14 +13,21 @@ export async function GET() {
     const nickname = user.user_metadata?.nickname ?? '';
     const tag = user.user_metadata?.tag ?? '0001';
 
-    return NextResponse.json({
-      user: {
-        id: user.id,
-        nickname,
-        tag,
-        displayName: `${nickname}#${tag}`,
+    return NextResponse.json(
+      {
+        user: {
+          id: user.id,
+          nickname,
+          tag,
+          displayName: `${nickname}#${tag}`,
+        },
       },
-    });
+      {
+        headers: {
+          'Cache-Control': 'private, max-age=300, stale-while-revalidate=600',
+        },
+      }
+    );
   } catch {
     return NextResponse.json({ user: null });
   }

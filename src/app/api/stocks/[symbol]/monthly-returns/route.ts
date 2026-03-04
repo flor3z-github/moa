@@ -164,7 +164,7 @@ export async function GET(
 
     return NextResponse.json({ data }, {
       headers: {
-        'Cache-Control': 'private, no-store',
+        'Cache-Control': 'private, max-age=300, stale-while-revalidate=600',
       },
     });
   } catch (err: unknown) {
