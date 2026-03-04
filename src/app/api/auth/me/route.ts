@@ -10,10 +10,15 @@ export async function GET() {
       return NextResponse.json({ user: null });
     }
 
+    const nickname = user.user_metadata?.nickname ?? '';
+    const tag = user.user_metadata?.tag ?? '0001';
+
     return NextResponse.json({
       user: {
         id: user.id,
-        nickname: user.user_metadata?.nickname ?? '',
+        nickname,
+        tag,
+        displayName: `${nickname}#${tag}`,
       },
     });
   } catch {

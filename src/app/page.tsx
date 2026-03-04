@@ -14,19 +14,19 @@ export default function Home() {
   const { latest, history, targets, loading, error, refetch } = useStocks(30);
   const [activeTab, setActiveTab] = useState<Tab>('stocks');
   const [showModal, setShowModal] = useState(false);
-  const [nickname, setNickname] = useState('');
+  const [displayName, setDisplayName] = useState('');
 
   useEffect(() => {
     fetch('/api/auth/me')
       .then((r) => r.json())
-      .then((d) => setNickname(d.user?.nickname ?? ''))
+      .then((d) => setDisplayName(d.user?.displayName ?? ''))
       .catch(() => {});
   }, []);
 
   return (
     <AppShell>
       <div className="mx-auto max-w-2xl">
-        <Header theme={theme} onToggleTheme={toggle} nickname={nickname} />
+        <Header theme={theme} onToggleTheme={toggle} nickname={displayName} />
         <TabNav activeTab={activeTab} onTabChange={setActiveTab} />
 
         <main className="px-6 pb-24 pt-5">

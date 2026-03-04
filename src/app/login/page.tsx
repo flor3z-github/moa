@@ -5,17 +5,16 @@ import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
   const router = useRouter();
-  const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [nickname, setNickname] = useState('');
   const [pin, setPin] = useState(['', '', '', '']);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState('');
+  const [notice, setNotice] = useState('');
   const pinRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   useEffect(() => {
     pinRefs.current[0]?.focus();
-  }, [mode]);
+  }, []);
 
   const handlePinChange = (index: number, value: string) => {
     if (!/^\d?$/.test(value)) return;
@@ -40,12 +39,11 @@ export default function LoginPage() {
     if (!nickname.trim() || fullPin.length !== 4) return;
 
     setError('');
-    setSuccess('');
+    setNotice('');
     setLoading(true);
 
     try {
-      const endpoint = mode === 'signup' ? '/api/auth/signup' : '/api/auth/login';
-      const res = await fetch(endpoint, {
+      const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nickname: nickname.trim(), pin: fullPin }),
@@ -58,11 +56,9 @@ export default function LoginPage() {
         return;
       }
 
-      if (mode === 'signup') {
-        setSuccess('가입 완료! 로그인해주세요.');
-        setMode('login');
-        setPin(['', '', '', '']);
-        return;
+      if (data.isNew) {
+        setNotice(`${data.user.nickname}#${data.user.tag} 계정이 생성되었습니다`);
+        await new Promise((r) => setTimeout(r, 1200));
       }
 
       router.push('/');
@@ -115,7 +111,7 @@ export default function LoginPage() {
             marginBottom: 32,
           }}
         >
-          {mode === 'login' ? '로그인' : '회원가입'}
+          닉네임과 PIN을 입력하세요
         </p>
 
         <form onSubmit={handleSubmit}>
@@ -135,7 +131,7 @@ export default function LoginPage() {
               type="text"
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
-              placeholder="닉네임 입력"
+              placeholder="닉네임"
               maxLength={20}
               style={{
                 width: '100%',
@@ -185,9 +181,9 @@ export default function LoginPage() {
               {error}
             </p>
           )}
-          {success && (
+          {notice && (
             <p style={{ fontSize: 12, color: 'var(--positive)', marginBottom: 12, textAlign: 'center' }}>
-              {success}
+              {notice}
             </p>
           )}
 
@@ -208,33 +204,25 @@ export default function LoginPage() {
               transition: 'opacity 0.2s',
             }}
           >
-            {loading ? '...' : mode === 'login' ? '로그인' : '가입하기'}
+            {loading ? '...' : '시작하기'}
           </button>
         </form>
 
-        <div style={{ marginTop: 20, textAlign: 'center' }}>
-          <button
-            onClick={() => {
-              setMode(mode === 'login' ? 'signup' : 'login');
-              setError('');
-              setSuccess('');
-              setPin(['', '', '', '']);
-            }}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: 'var(--accent)',
-              fontSize: 12,
-              cursor: 'pointer',
-            }}
-          >
-            {mode === 'login' ? '계정이 없으신가요? 가입하기' : '이미 계정이 있으신가요? 로그인'}
-          </button>
-        </div>
+        <p
+          style={{
+            marginTop: 16,
+            textAlign: 'center',
+            fontSize: 11,
+            color: 'var(--text-muted)',
+            lineHeight: 1.5,
+          }}
+        >
+          처음이면 자동으로 계정이 만들어집니다
+        </p>
 
         <div
           style={{
-            marginTop: 24,
+            marginTop: 20,
             padding: '10px 14px',
             borderRadius: 8,
             background: 'var(--positive-bg)',
