@@ -6,11 +6,13 @@ import { useRouter } from 'next/navigation';
 export default function LoginPage() {
   const router = useRouter();
   const [nickname, setNickname] = useState('');
+  const [tag, setTag] = useState('');
   const [pin, setPin] = useState(['', '', '', '']);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState('');
   const pinRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const tagRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     pinRefs.current[0]?.focus();
@@ -46,7 +48,7 @@ export default function LoginPage() {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nickname: nickname.trim(), pin: fullPin }),
+        body: JSON.stringify({ nickname: nickname.trim(), tag: tag || undefined, pin: fullPin }),
       });
 
       const data = await res.json();
@@ -126,19 +128,58 @@ export default function LoginPage() {
             >
               닉네임
             </label>
-            <input
-              className="glass-input"
-              type="text"
-              value={nickname}
-              onChange={(e) => setNickname(e.target.value)}
-              placeholder="닉네임"
-              maxLength={20}
-              style={{
-                width: '100%',
-                padding: '10px 14px',
-                fontSize: 14,
-              }}
-            />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+              <input
+                className="glass-input"
+                type="text"
+                value={nickname}
+                onChange={(e) => setNickname(e.target.value)}
+                placeholder="닉네임"
+                maxLength={20}
+                style={{
+                  flex: 1,
+                  padding: '10px 14px',
+                  fontSize: 14,
+                  borderTopRightRadius: 0,
+                  borderBottomRightRadius: 0,
+                }}
+              />
+              <span
+                style={{
+                  padding: '10px 6px',
+                  fontSize: 16,
+                  fontWeight: 700,
+                  color: 'var(--text-muted)',
+                  userSelect: 'none',
+                }}
+              >
+                #
+              </span>
+              <input
+                ref={tagRef}
+                className="glass-input"
+                type="text"
+                inputMode="numeric"
+                value={tag}
+                onChange={(e) => {
+                  const v = e.target.value.replace(/\D/g, '');
+                  if (v.length <= 4) setTag(v);
+                }}
+                placeholder="태그"
+                maxLength={4}
+                style={{
+                  width: 72,
+                  padding: '10px 10px',
+                  fontSize: 14,
+                  fontFamily: 'var(--mono)',
+                  borderTopLeftRadius: 0,
+                  borderBottomLeftRadius: 0,
+                }}
+              />
+            </div>
+            <p style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
+              처음이면 태그를 비워두세요
+            </p>
           </div>
 
           <div style={{ marginBottom: 24 }}>

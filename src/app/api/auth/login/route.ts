@@ -5,7 +5,7 @@ import { cookies } from 'next/headers';
 
 export async function POST(request: Request) {
   try {
-    const { nickname, pin } = await request.json();
+    const { nickname, tag, pin } = await request.json();
 
     if (!nickname || !pin) {
       return NextResponse.json({ error: '닉네임과 PIN을 입력해주세요.' }, { status: 400 });
@@ -15,19 +15,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'PIN은 4자리 숫자여야 합니다.' }, { status: 400 });
     }
 
+    if (tag && !/^\d{1,4}$/.test(tag)) {
+      return NextResponse.json({ error: '태그는 1~4자리 숫자여야 합니다.' }, { status: 400 });
+    }
+
     const trimmed = nickname.trim();
     if (trimmed.length < 1 || trimmed.length > 20) {
       return NextResponse.json({ error: '닉네임은 1~20자여야 합니다.' }, { status: 400 });
     }
 
     const password = `moa-pin-${pin}-secure`;
-    const admin = createServiceClient();
-
-    // 같은 닉네임을 가진 유저들 조회
-    const { data: listing } = await admin.auth.admin.listUsers({ perPage: 1000 });
-    const sameNickname = (listing?.users ?? []).filter(
-      (u) => u.user_metadata?.nickname === trimmed
-    );
+    const adminClient = createServiceClient();
 
     // 쿠키 기반 Supabase 클라이언트 (세션 설정용)
     const cookieStore = await cookies();
@@ -48,7 +46,35 @@ export async function POST(request: Request) {
       }
     );
 
-    // 기존 유저들에게 로그인 시도
+    // 태그가 명시된 경우 → 특정 유저에게만 로그인 시도
+    if (tag) {
+      const paddedTag = tag.padStart(4, '0');
+      const email = `${trimmed}.${paddedTag}@moa.local`;
+
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error || !data.user) {
+        return NextResponse.json(
+          { error: '닉네임, 태그 또는 PIN이 올바르지 않습니다.' },
+          { status: 401 }
+        );
+      }
+
+      return NextResponse.json({
+        user: { id: data.user.id, nickname: trimmed, tag: paddedTag },
+        isNew: false,
+      });
+    }
+
+    // 태그 없음 → 같은 닉네임 유저들 조회 후 순차 시도
+    const { data: listing } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
+    const sameNickname = (listing?.users ?? []).filter(
+      (u) => u.user_metadata?.nickname === trimmed
+    );
+
     for (const user of sameNickname) {
       const { data, error } = await supabase.auth.signInWithPassword({
         email: user.email!,
@@ -56,9 +82,9 @@ export async function POST(request: Request) {
       });
 
       if (!error && data.user) {
-        const tag = data.user.user_metadata?.tag ?? '0001';
+        const userTag = data.user.user_metadata?.tag ?? '0001';
         return NextResponse.json({
-          user: { id: data.user.id, nickname: trimmed, tag },
+          user: { id: data.user.id, nickname: trimmed, tag: userTag },
           isNew: false,
         });
       }
@@ -71,7 +97,7 @@ export async function POST(request: Request) {
     const nextTag = String((existingTags.length > 0 ? Math.max(...existingTags) : 0) + 1).padStart(4, '0');
     const email = `${trimmed}.${nextTag}@moa.local`;
 
-    const { error: createError } = await admin.auth.admin.createUser({
+    const { error: createError } = await adminClient.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
