@@ -3,6 +3,11 @@ import { createServerClient } from '@supabase/ssr';
 import { createServiceClient } from '@/lib/db';
 import { cookies } from 'next/headers';
 
+function toEmail(nickname: string, tag: string): string {
+  const hex = Buffer.from(nickname).toString('hex');
+  return `${hex}.${tag}@moa.local`;
+}
+
 export async function POST(request: Request) {
   try {
     const { nickname, tag, pin } = await request.json();
@@ -49,7 +54,7 @@ export async function POST(request: Request) {
     // 태그가 명시된 경우 → 특정 유저에게만 로그인 시도
     if (tag) {
       const paddedTag = tag.padStart(4, '0');
-      const email = `${trimmed}.${paddedTag}@moa.local`;
+      const email = toEmail(trimmed, paddedTag);
 
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -95,7 +100,7 @@ export async function POST(request: Request) {
       .map((u) => parseInt(u.user_metadata?.tag ?? '0', 10))
       .filter((n) => !isNaN(n));
     const nextTag = String((existingTags.length > 0 ? Math.max(...existingTags) : 0) + 1).padStart(4, '0');
-    const email = `${trimmed}.${nextTag}@moa.local`;
+    const email = toEmail(trimmed, nextTag);
 
     const { error: createError } = await adminClient.auth.admin.createUser({
       email,
