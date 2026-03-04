@@ -51,7 +51,7 @@ export async function POST(request: Request) {
       }
     );
 
-    // 태그가 명시된 경우 → 특정 유저에게만 로그인 시도
+    // 태그가 명시된 경우 → 로그인 시도, 없으면 해당 태그로 새 유저 생성
     if (tag) {
       const paddedTag = tag.padStart(4, '0');
       const email = toEmail(trimmed, paddedTag);
@@ -61,16 +61,42 @@ export async function POST(request: Request) {
         password,
       });
 
-      if (error || !data.user) {
-        return NextResponse.json(
-          { error: '닉네임, 태그 또는 PIN이 올바르지 않습니다.' },
-          { status: 401 }
-        );
+      if (!error && data.user) {
+        return NextResponse.json({
+          user: { id: data.user.id, nickname: trimmed, tag: paddedTag },
+          isNew: false,
+        });
       }
 
+      // 해당 태그 유저가 없으면 새로 생성
+      const { error: createErr } = await adminClient.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: { nickname: trimmed, tag: paddedTag },
+      });
+
+      if (createErr) {
+        // 이미 해당 이메일이 존재하면 PIN이 틀린 것
+        if (createErr.message?.includes('already been registered')) {
+          return NextResponse.json(
+            { error: 'PIN이 올바르지 않습니다.' },
+            { status: 401 }
+          );
+        }
+        throw createErr;
+      }
+
+      const { data: signIn, error: signInErr } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (signInErr) throw signInErr;
+
       return NextResponse.json({
-        user: { id: data.user.id, nickname: trimmed, tag: paddedTag },
-        isNew: false,
+        user: { id: signIn.user.id, nickname: trimmed, tag: paddedTag },
+        isNew: true,
       });
     }
 
