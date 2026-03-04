@@ -4,10 +4,14 @@ const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 12;
 const TAG_LENGTH = 16;
 
+let _cachedKey: Buffer | null = null;
+
 function getKey(): Buffer {
+  if (_cachedKey) return _cachedKey;
   const secret = process.env.ENCRYPTION_KEY;
   if (!secret) throw new Error('ENCRYPTION_KEY is not set');
-  return scryptSync(secret, 'moa-salt', 32);
+  _cachedKey = scryptSync(secret, 'moa-salt', 32);
+  return _cachedKey;
 }
 
 /** 숫자를 암호화하여 base64 문자열로 반환 */

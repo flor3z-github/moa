@@ -20,13 +20,19 @@ export async function GET(request: Request) {
       .toISOString()
       .split('T')[0];
 
-    // Phase 1: 유저 종목 먼저 조회 (가격 쿼리 필터링에 필요)
-    const { data: targets } = await supabase
-      .from('stock_targets')
-      .select('symbol, name, market')
-      .order('created_at', { ascending: true });
+    // 유저 종목 + 거래내역을 병렬로 조회 (둘 다 RLS 기반, symbol 의존성 없음)
+    const [targetsRes, txRes] = await Promise.all([
+      supabase
+        .from('stock_targets')
+        .select('symbol, name, market')
+        .order('created_at', { ascending: true }),
+      supabase
+        .from('stock_transactions')
+        .select('symbol, amount, price, quantity, transacted_at'),
+    ]);
 
-    const symbols = (targets ?? []).map((t: { symbol: string }) => t.symbol);
+    const targets = targetsRes.data ?? [];
+    const symbols = targets.map((t: { symbol: string }) => t.symbol);
 
     if (symbols.length === 0) {
       return NextResponse.json(
@@ -35,22 +41,15 @@ export async function GET(request: Request) {
       );
     }
 
-    // Phase 2: 거래내역 + 유저 종목 가격만 병렬 조회
-    const [txRes, pricesRes] = await Promise.all([
-      supabase
-        .from('stock_transactions')
-        .select('symbol, amount, price, quantity, transacted_at'),
-      serviceClient
-        .from('stock_prices')
-        .select('symbol, name, price, close, change_percent, volume, traded_at, fetched_at, provider')
-        .in('symbol', symbols)
-        .gte('traded_at', cutoffDate)
-        .order('traded_at', { ascending: false }),
-    ]);
+    // 가격 조회 (symbols 확정 후, service client로)
+    const { data, error } = await serviceClient
+      .from('stock_prices')
+      .select('symbol, name, price, close, change_percent, volume, traded_at, fetched_at, provider')
+      .in('symbol', symbols)
+      .gte('traded_at', cutoffDate)
+      .order('traded_at', { ascending: false });
 
     const txRows = txRes.data;
-    const data = pricesRes.data;
-    const error = pricesRes.error;
 
     if (error) throw error;
 
@@ -67,7 +66,7 @@ export async function GET(request: Request) {
       }
     }
 
-    // 종목별로 그룹핑 (DB에서 이미 유저 종목만 필터링됨)
+    // 종목별로 그룹핑
     const grouped: Record<string, Record<string, unknown>[]> = {};
     for (const row of data ?? []) {
       if (!grouped[row.symbol]) grouped[row.symbol] = [];

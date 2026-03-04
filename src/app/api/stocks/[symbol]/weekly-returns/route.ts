@@ -26,7 +26,11 @@ export async function GET(
     const supabase = await createAuthClient();
     const serviceClient = createServiceClient();
 
-    // 거래 내역 + 일별 주가 병렬 조회
+    const twoYearsAgo = new Date(Date.now() - 2 * 365 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .split('T')[0];
+
+    // 거래내역 + 가격 병렬 조회 (가격은 2년 범위로 제한)
     const [txRes, priceRes] = await Promise.all([
       supabase
         .from('stock_transactions')
@@ -37,6 +41,7 @@ export async function GET(
         .from('stock_prices')
         .select('close, traded_at')
         .eq('symbol', symbol)
+        .gte('traded_at', twoYearsAgo)
         .order('traded_at', { ascending: true }),
     ]);
 

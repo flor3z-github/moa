@@ -29,6 +29,9 @@ export default function StockModal({ open, onClose }: StockModalProps) {
   const [targets, setTargets] = useState<StockTargetItem[]>([]);
   const [targetsLoading, setTargetsLoading] = useState(false);
 
+  const txCache = useRef<Map<string, StockTransaction[]>>(new Map());
+  const changed = useRef(false);
+
   // Transaction expansion per symbol
   const [expandedSymbol, setExpandedSymbol] = useState<string | null>(null);
   const [transactions, setTransactions] = useState<StockTransaction[]>([]);
@@ -41,7 +44,7 @@ export default function StockModal({ open, onClose }: StockModalProps) {
   const [selectedStock, setSelectedStock] = useState<SearchResult | null>(null);
   const [addError, setAddError] = useState('');
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null);
-  const changed = useRef(false);
+  const targetsStale = useRef(true);
 
   // Step wizard: 1 = 종목 선택, 2 = 투자 정보 입력
   const [step, setStep] = useState<1 | 2>(1);
@@ -49,26 +52,34 @@ export default function StockModal({ open, onClose }: StockModalProps) {
   const [newSymbol, setNewSymbol] = useState<string | null>(null);
   const [newTxs, setNewTxs] = useState<StockTransaction[]>([]);
 
-  const fetchTargets = useCallback(async () => {
+  const fetchTargets = useCallback(async (force = false) => {
+    if (!force && !targetsStale.current && targets.length > 0) return;
     setTargetsLoading(true);
     try {
       const res = await fetch('/api/stock-targets');
       if (!res.ok) throw new Error('종목 목록 조회 실패');
       const data = await res.json();
       setTargets(data);
+      targetsStale.current = false;
     } catch {
       // ignore
     } finally {
       setTargetsLoading(false);
     }
-  }, []);
+  }, [targets.length]);
 
-  const fetchTransactions = useCallback(async (symbol: string) => {
+  const fetchTransactions = useCallback(async (symbol: string, force = false) => {
+    const cached = txCache.current.get(symbol);
+    if (!force && cached) {
+      setTransactions(cached);
+      return;
+    }
     setTxLoading(true);
     try {
       const res = await fetch(`/api/stock-transactions?symbol=${encodeURIComponent(symbol)}`);
       if (!res.ok) throw new Error();
       const data = await res.json();
+      txCache.current.set(symbol, data);
       setTransactions(data);
     } catch {
       setTransactions([]);
@@ -105,7 +116,7 @@ export default function StockModal({ open, onClose }: StockModalProps) {
     try {
       await fetch(`/api/stock-transactions/${id}`, { method: 'DELETE' });
       changed.current = true;
-      if (expandedSymbol) fetchTransactions(expandedSymbol);
+      if (expandedSymbol) fetchTransactions(expandedSymbol, true);
     } catch {
       // ignore
     } finally {
@@ -115,7 +126,8 @@ export default function StockModal({ open, onClose }: StockModalProps) {
 
   function handleTxAdded() {
     changed.current = true;
-    if (expandedSymbol) fetchTransactions(expandedSymbol);
+    txCache.current.delete(expandedSymbol!);
+    if (expandedSymbol) fetchTransactions(expandedSymbol, true);
   }
 
   const fetchNewTxs = useCallback(async (symbol: string) => {
@@ -144,6 +156,7 @@ export default function StockModal({ open, onClose }: StockModalProps) {
     resetForm();
     setExpandedSymbol(null);
     setTransactions([]);
+    txCache.current.clear();
     changed.current = false;
     onClose(hasChanged);
   }
@@ -192,6 +205,7 @@ export default function StockModal({ open, onClose }: StockModalProps) {
         return;
       }
       changed.current = true;
+      targetsStale.current = true;
       setNewSymbol(selectedStock.symbol);
       setStep(2);
       fetchTargets();
@@ -209,7 +223,8 @@ export default function StockModal({ open, onClose }: StockModalProps) {
 
   function handleFinish() {
     resetForm();
-    fetchTargets();
+    targetsStale.current = true;
+    fetchTargets(true);
   }
 
   async function handleDelete(id: number) {
@@ -217,7 +232,9 @@ export default function StockModal({ open, onClose }: StockModalProps) {
     try {
       await fetch(`/api/stock-targets/${id}`, { method: 'DELETE' });
       changed.current = true;
+      targetsStale.current = true;
       const target = targets.find((t) => t.id === id);
+      txCache.current.delete(target?.symbol ?? '');
       if (target?.symbol === expandedSymbol) {
         setExpandedSymbol(null);
         setTransactions([]);

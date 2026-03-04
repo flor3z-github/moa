@@ -19,8 +19,8 @@ export async function GET(
     const supabase = await createAuthClient();
     const serviceClient = createServiceClient();
 
-    // 종목 정보 + 거래 내역 병렬 조회
-    const [targetRes, txRes] = await Promise.all([
+    // 종목 정보 + 거래 내역 + 캐시 데이터 병렬 조회
+    const [targetRes, txRes, cacheRes] = await Promise.all([
       supabase
         .from('stock_targets')
         .select('symbol, market')
@@ -31,6 +31,11 @@ export async function GET(
         .select('quantity, amount, price, transacted_at')
         .eq('symbol', symbol)
         .order('transacted_at', { ascending: true }),
+      serviceClient
+        .from('stock_monthly_prices')
+        .select('year_month, close_price, traded_at, fetched_at')
+        .eq('symbol', symbol)
+        .order('year_month', { ascending: true }),
     ]);
 
     const { data: target, error: targetError } = targetRes;
@@ -65,16 +70,13 @@ export async function GET(
       cursor.setMonth(cursor.getMonth() + 1);
     }
 
-    // 캐시된 월간 데이터 조회 (공유 데이터 → service client)
-    const { data: cached } = await serviceClient
-      .from('stock_monthly_prices')
-      .select('year_month, close_price, traded_at, fetched_at')
-      .eq('symbol', symbol)
-      .gte('year_month', months[0])
-      .order('year_month', { ascending: true });
-
+    // 캐시 데이터를 인메모리 필터링 (병렬 조회 결과)
+    const allCached = cacheRes.data ?? [];
+    const cached = allCached.filter(
+      (r: { year_month: string }) => r.year_month >= months[0]
+    );
     const cachedMap = new Map(
-      (cached ?? []).map((r: { year_month: string; close_price: number; traded_at: string; fetched_at?: string }) => [r.year_month, r])
+      cached.map((r: { year_month: string; close_price: number; traded_at: string; fetched_at?: string }) => [r.year_month, r])
     );
 
     // 빠진 월 확인 + 당월 갱신
