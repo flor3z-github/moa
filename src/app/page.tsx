@@ -55,7 +55,7 @@ export default function Home() {
         </main>
       </div>
 
-      <StockModal open={showModal} onClose={() => { setShowModal(false); refetch(); }} />
+      <StockModal open={showModal} onClose={(changed) => { setShowModal(false); if (changed) refetch(); }} />
     </AppShell>
   );
 }

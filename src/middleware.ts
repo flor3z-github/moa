@@ -49,6 +49,18 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // 검증된 유저 ID를 request 헤더로 전달 → API Route에서 중복 getUser() 호출 방지
+  if (user) {
+    request.headers.set('x-user-id', user.id);
+    const forwarded = NextResponse.next({
+      request: { headers: request.headers },
+    });
+    supabaseResponse.cookies.getAll().forEach((cookie) => {
+      forwarded.cookies.set(cookie);
+    });
+    return forwarded;
+  }
+
   return supabaseResponse;
 }
 

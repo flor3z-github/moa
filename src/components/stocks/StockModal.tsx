@@ -22,12 +22,15 @@ interface SearchResult {
 
 interface StockModalProps {
   open: boolean;
-  onClose: () => void;
+  onClose: (changed: boolean) => void;
 }
 
 export default function StockModal({ open, onClose }: StockModalProps) {
   const [targets, setTargets] = useState<StockTargetItem[]>([]);
   const [targetsLoading, setTargetsLoading] = useState(false);
+
+  const txCache = useRef<Map<string, StockTransaction[]>>(new Map());
+  const changed = useRef(false);
 
   // Transaction expansion per symbol
   const [expandedSymbol, setExpandedSymbol] = useState<string | null>(null);
@@ -41,6 +44,7 @@ export default function StockModal({ open, onClose }: StockModalProps) {
   const [selectedStock, setSelectedStock] = useState<SearchResult | null>(null);
   const [addError, setAddError] = useState('');
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null);
+  const targetsStale = useRef(true);
 
   // Step wizard: 1 = 종목 선택, 2 = 투자 정보 입력
   const [step, setStep] = useState<1 | 2>(1);
@@ -48,26 +52,34 @@ export default function StockModal({ open, onClose }: StockModalProps) {
   const [newSymbol, setNewSymbol] = useState<string | null>(null);
   const [newTxs, setNewTxs] = useState<StockTransaction[]>([]);
 
-  const fetchTargets = useCallback(async () => {
+  const fetchTargets = useCallback(async (force = false) => {
+    if (!force && !targetsStale.current && targets.length > 0) return;
     setTargetsLoading(true);
     try {
       const res = await fetch('/api/stock-targets');
       if (!res.ok) throw new Error('종목 목록 조회 실패');
       const data = await res.json();
       setTargets(data);
+      targetsStale.current = false;
     } catch {
       // ignore
     } finally {
       setTargetsLoading(false);
     }
-  }, []);
+  }, [targets.length]);
 
-  const fetchTransactions = useCallback(async (symbol: string) => {
+  const fetchTransactions = useCallback(async (symbol: string, force = false) => {
+    const cached = txCache.current.get(symbol);
+    if (!force && cached) {
+      setTransactions(cached);
+      return;
+    }
     setTxLoading(true);
     try {
       const res = await fetch(`/api/stock-transactions?symbol=${encodeURIComponent(symbol)}`);
       if (!res.ok) throw new Error();
       const data = await res.json();
+      txCache.current.set(symbol, data);
       setTransactions(data);
     } catch {
       setTransactions([]);
@@ -79,6 +91,15 @@ export default function StockModal({ open, onClose }: StockModalProps) {
   useEffect(() => {
     if (open) fetchTargets();
   }, [open, fetchTargets]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') handleClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
 
   function toggleExpand(symbol: string) {
     if (expandedSymbol === symbol) {
@@ -94,7 +115,8 @@ export default function StockModal({ open, onClose }: StockModalProps) {
     setDeletingTx(id);
     try {
       await fetch(`/api/stock-transactions/${id}`, { method: 'DELETE' });
-      if (expandedSymbol) fetchTransactions(expandedSymbol);
+      changed.current = true;
+      if (expandedSymbol) fetchTransactions(expandedSymbol, true);
     } catch {
       // ignore
     } finally {
@@ -103,7 +125,9 @@ export default function StockModal({ open, onClose }: StockModalProps) {
   }
 
   function handleTxAdded() {
-    if (expandedSymbol) fetchTransactions(expandedSymbol);
+    changed.current = true;
+    txCache.current.delete(expandedSymbol!);
+    if (expandedSymbol) fetchTransactions(expandedSymbol, true);
   }
 
   const fetchNewTxs = useCallback(async (symbol: string) => {
@@ -128,10 +152,13 @@ export default function StockModal({ open, onClose }: StockModalProps) {
   }
 
   function handleClose() {
+    const hasChanged = changed.current;
     resetForm();
     setExpandedSymbol(null);
     setTransactions([]);
-    onClose();
+    txCache.current.clear();
+    changed.current = false;
+    onClose(hasChanged);
   }
 
   function handleSearch(query: string) {
@@ -177,6 +204,8 @@ export default function StockModal({ open, onClose }: StockModalProps) {
         setAddError(data.error || '종목 추가 실패');
         return;
       }
+      changed.current = true;
+      targetsStale.current = true;
       setNewSymbol(selectedStock.symbol);
       setStep(2);
       fetchTargets();
@@ -188,19 +217,24 @@ export default function StockModal({ open, onClose }: StockModalProps) {
   }
 
   function handleNewTxAdded() {
+    changed.current = true;
     if (newSymbol) fetchNewTxs(newSymbol);
   }
 
   function handleFinish() {
     resetForm();
-    fetchTargets();
+    targetsStale.current = true;
+    fetchTargets(true);
   }
 
   async function handleDelete(id: number) {
     if (!confirm('이 종목을 삭제하시겠습니까?')) return;
     try {
       await fetch(`/api/stock-targets/${id}`, { method: 'DELETE' });
+      changed.current = true;
+      targetsStale.current = true;
       const target = targets.find((t) => t.id === id);
+      txCache.current.delete(target?.symbol ?? '');
       if (target?.symbol === expandedSymbol) {
         setExpandedSymbol(null);
         setTransactions([]);

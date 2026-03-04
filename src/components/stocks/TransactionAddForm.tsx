@@ -71,7 +71,12 @@ export default function TransactionAddForm({ symbol, onAdded }: TransactionAddFo
           disabled={saving}
           className="shrink-0 rounded-lg bg-accent px-3 py-1.5 text-[12px] font-semibold text-white transition-all hover:brightness-110 disabled:opacity-50"
         >
-          {saving ? '...' : '추가'}
+          {saving ? (
+            <span
+              className="inline-block h-3.5 w-3.5 rounded-full border-2 border-white/30 border-t-white"
+              style={{ animation: 'spin 0.6s linear infinite' }}
+            />
+          ) : '추가'}
         </button>
       </div>
       {error && <div className="mt-1 text-[11px] text-negative">{error}</div>}

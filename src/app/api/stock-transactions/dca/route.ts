@@ -58,7 +58,7 @@ export async function POST(request: Request) {
     // 캐시된 월간 가격 조회 (공유 데이터 → service client)
     const { data: cached } = await serviceClient
       .from('stock_monthly_prices')
-      .select('*')
+      .select('year_month, close_price, traded_at')
       .eq('symbol', symbol)
       .gte('year_month', startMonth)
       .lte('year_month', endMonth);

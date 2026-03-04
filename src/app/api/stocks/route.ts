@@ -20,8 +20,8 @@ export async function GET(request: Request) {
       .toISOString()
       .split('T')[0];
 
-    // 3개 쿼리 병렬 실행
-    const [targetsRes, txRes, pricesRes] = await Promise.all([
+    // 유저 종목 + 거래내역을 병렬로 조회 (둘 다 RLS 기반, symbol 의존성 없음)
+    const [targetsRes, txRes] = await Promise.all([
       supabase
         .from('stock_targets')
         .select('symbol, name, market')
@@ -29,17 +29,27 @@ export async function GET(request: Request) {
       supabase
         .from('stock_transactions')
         .select('symbol, amount, price, quantity, transacted_at'),
-      serviceClient
-        .from('stock_prices')
-        .select('symbol, name, price, close, change_percent, volume, traded_at, fetched_at, provider')
-        .gte('traded_at', cutoffDate)
-        .order('traded_at', { ascending: false }),
     ]);
 
-    const targets = targetsRes.data;
+    const targets = targetsRes.data ?? [];
+    const symbols = targets.map((t: { symbol: string }) => t.symbol);
+
+    if (symbols.length === 0) {
+      return NextResponse.json(
+        { latest: [], history: {}, targets: [] },
+        { headers: { 'Cache-Control': 'private, no-store' } }
+      );
+    }
+
+    // 가격 조회 (symbols 확정 후, service client로)
+    const { data, error } = await serviceClient
+      .from('stock_prices')
+      .select('symbol, name, price, close, change_percent, volume, traded_at, fetched_at, provider')
+      .in('symbol', symbols)
+      .gte('traded_at', cutoffDate)
+      .order('traded_at', { ascending: false });
+
     const txRows = txRes.data;
-    const data = pricesRes.data;
-    const error = pricesRes.error;
 
     if (error) throw error;
 
@@ -56,13 +66,9 @@ export async function GET(request: Request) {
       }
     }
 
-    // 유저의 종목에 해당하는 가격만 필터링
-    const userSymbols = new Set((targets ?? []).map((t: { symbol: string }) => t.symbol));
-
     // 종목별로 그룹핑
     const grouped: Record<string, Record<string, unknown>[]> = {};
     for (const row of data ?? []) {
-      if (!userSymbols.has(row.symbol)) continue;
       if (!grouped[row.symbol]) grouped[row.symbol] = [];
       grouped[row.symbol].push(row);
     }
@@ -101,7 +107,7 @@ export async function GET(request: Request) {
       { latest, history: grouped, targets: targetsMeta },
       {
         headers: {
-          'Cache-Control': 'private, no-store',
+          'Cache-Control': 'private, max-age=30, stale-while-revalidate=300',
         },
       }
     );
