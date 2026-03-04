@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/db';
+import { createAuthClient, createServiceClient } from '@/lib/db';
+import { getAuthUserId } from '@/lib/auth';
+import { decryptTransaction } from '@/lib/crypto';
 import type { WeeklyPortfolioData } from '@/lib/stock/types';
 
 function getWeekStart(dateStr: string): string {
@@ -15,32 +17,52 @@ export async function GET(
   { params }: { params: Promise<{ symbol: string }> }
 ) {
   try {
+    const userId = await getAuthUserId();
+    if (!userId) {
+      return NextResponse.json({ error: '인증이 필요합니다.' }, { status: 401 });
+    }
+
     const { symbol } = await params;
-    const supabase = createServerClient();
+    const supabase = await createAuthClient();
+    const serviceClient = createServiceClient();
 
-    // 거래 내역 조회
-    const { data: transactions, error: txError } = await supabase
-      .from('stock_transactions')
-      .select('quantity, amount, transacted_at')
-      .eq('symbol', symbol)
-      .order('transacted_at', { ascending: true });
+    const twoYearsAgo = new Date(Date.now() - 2 * 365 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .split('T')[0];
 
-    if (txError) throw txError;
-    if (!transactions || transactions.length === 0) {
+    // 거래내역 + 가격 병렬 조회 (가격은 2년 범위로 제한)
+    const [txRes, priceRes] = await Promise.all([
+      supabase
+        .from('stock_transactions')
+        .select('quantity, amount, price, transacted_at')
+        .eq('symbol', symbol)
+        .order('transacted_at', { ascending: true }),
+      serviceClient
+        .from('stock_prices')
+        .select('close, traded_at')
+        .eq('symbol', symbol)
+        .gte('traded_at', twoYearsAgo)
+        .order('traded_at', { ascending: true }),
+    ]);
+
+    if (txRes.error) throw txRes.error;
+    if (!txRes.data || txRes.data.length === 0) {
       return NextResponse.json({ data: [] });
     }
 
-    // 일별 주가 데이터 조회 (첫 거래일부터)
-    const earliestDate = transactions[0].transacted_at;
-    const { data: prices, error: priceError } = await supabase
-      .from('stock_prices')
-      .select('close, traded_at')
-      .eq('symbol', symbol)
-      .gte('traded_at', earliestDate)
-      .order('traded_at', { ascending: true });
+    // 암호화된 거래 복호화
+    const transactions = txRes.data.map((row) => {
+      const r = row as unknown as { amount: string; price: string; quantity: string; transacted_at: string };
+      return decryptTransaction(r);
+    });
 
-    if (priceError) throw priceError;
-    if (!prices || prices.length === 0) {
+    if (priceRes.error) throw priceRes.error;
+
+    // 첫 거래일 이후의 가격만 사용
+    const earliestDate = transactions[0].transacted_at as string;
+    const prices = (priceRes.data ?? []).filter((p) => p.traded_at >= earliestDate);
+
+    if (prices.length === 0) {
       return NextResponse.json({ data: [] });
     }
 
@@ -60,14 +82,13 @@ export async function GET(
     const sortedWeeks = [...weeklyPrices.keys()].sort();
 
     for (const week of sortedWeeks) {
-      // 해당 주까지의 거래 누적
       const weekEnd = new Date(week);
       weekEnd.setDate(weekEnd.getDate() + 6);
       const weekEndStr = weekEnd.toISOString().split('T')[0];
 
-      while (txIdx < transactions.length && transactions[txIdx].transacted_at <= weekEndStr) {
-        cumulativeShares += Number(transactions[txIdx].quantity);
-        investedAmount += Number(transactions[txIdx].amount);
+      while (txIdx < transactions.length && (transactions[txIdx].transacted_at as string) <= weekEndStr) {
+        cumulativeShares += transactions[txIdx].quantity;
+        investedAmount += transactions[txIdx].amount;
         txIdx++;
       }
 
@@ -91,7 +112,7 @@ export async function GET(
 
     return NextResponse.json({ data }, {
       headers: {
-        'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=7200',
+        'Cache-Control': 'private, max-age=300, stale-while-revalidate=600',
       },
     });
   } catch (err: unknown) {

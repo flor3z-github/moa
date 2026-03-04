@@ -88,7 +88,12 @@ export default function DCAForm({ symbol, onAdded }: DCAFormProps) {
           disabled={saving}
           className="rounded-lg bg-accent px-3 py-1.5 text-[12px] font-semibold text-white transition-all hover:brightness-110 disabled:opacity-50"
         >
-          {saving ? '...' : '생성'}
+          {saving ? (
+            <span
+              className="inline-block h-3.5 w-3.5 rounded-full border-2 border-white/30 border-t-white"
+              style={{ animation: 'spin 0.6s linear infinite' }}
+            />
+          ) : '생성'}
         </button>
       </div>
       {error && <div className="mt-1 text-[11px] text-negative">{error}</div>}
