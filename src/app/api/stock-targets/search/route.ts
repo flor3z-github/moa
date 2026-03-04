@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { getAuthUserId } from '@/lib/auth';
 
 interface AutocResult {
   symbol: string;
@@ -12,6 +13,11 @@ interface AutocResult {
 }
 
 export async function GET(request: Request) {
+  const userId = await getAuthUserId();
+  if (!userId) {
+    return NextResponse.json({ error: '인증이 필요합니다.' }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const query = searchParams.get('q')?.trim();
 

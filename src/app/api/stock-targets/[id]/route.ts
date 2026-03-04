@@ -1,11 +1,17 @@
 import { NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/db';
+import { createAuthClient, createServiceClient } from '@/lib/db';
+import { getAuthUserId } from '@/lib/auth';
 
 export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const userId = await getAuthUserId();
+    if (!userId) {
+      return NextResponse.json({ error: '인증이 필요합니다.' }, { status: 401 });
+    }
+
     const { id } = await params;
     const body = await request.json();
     const { symbol, name, market } = body;
@@ -22,7 +28,7 @@ export async function PUT(
     if (name !== undefined) updates.name = name;
     if (market !== undefined) updates.market = market;
 
-    const supabase = createServerClient();
+    const supabase = await createAuthClient();
     const { data, error } = await supabase
       .from('stock_targets')
       .update(updates)
@@ -47,8 +53,14 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const userId = await getAuthUserId();
+    if (!userId) {
+      return NextResponse.json({ error: '인증이 필요합니다.' }, { status: 401 });
+    }
+
     const { id } = await params;
-    const supabase = createServerClient();
+    const supabase = await createAuthClient();
+    const serviceClient = createServiceClient();
 
     // 삭제 대상 종목의 symbol 조회
     const { data: target } = await supabase
@@ -68,8 +80,8 @@ export async function DELETE(
     // stock_prices / stock_monthly_prices는 FK가 없으므로 직접 삭제
     if (target?.symbol) {
       await Promise.all([
-        supabase.from('stock_prices').delete().eq('symbol', target.symbol),
-        supabase.from('stock_monthly_prices').delete().eq('symbol', target.symbol),
+        serviceClient.from('stock_prices').delete().eq('symbol', target.symbol),
+        serviceClient.from('stock_monthly_prices').delete().eq('symbol', target.symbol),
       ]);
     }
 

@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/db';
+import { createAuthClient, createServiceClient } from '@/lib/db';
+import { getAuthUserId } from '@/lib/auth';
+import { decryptTransaction } from '@/lib/crypto';
 import { fetchMonthlyHistory } from '@/lib/stock/providers/yahoo';
 import type { MonthlyPortfolioData } from '@/lib/stock/types';
 
@@ -8,8 +10,14 @@ export async function GET(
   { params }: { params: Promise<{ symbol: string }> }
 ) {
   try {
+    const userId = await getAuthUserId();
+    if (!userId) {
+      return NextResponse.json({ error: '인증이 필요합니다.' }, { status: 401 });
+    }
+
     const { symbol } = await params;
-    const supabase = createServerClient();
+    const supabase = await createAuthClient();
+    const serviceClient = createServiceClient();
 
     // 종목 정보 + 거래 내역 병렬 조회
     const [targetRes, txRes] = await Promise.all([
@@ -20,7 +28,7 @@ export async function GET(
         .single(),
       supabase
         .from('stock_transactions')
-        .select('quantity, amount, transacted_at')
+        .select('quantity, amount, price, transacted_at')
         .eq('symbol', symbol)
         .order('transacted_at', { ascending: true }),
     ]);
@@ -30,15 +38,21 @@ export async function GET(
       return NextResponse.json({ error: '종목을 찾을 수 없습니다.' }, { status: 404 });
     }
 
-    const { data: transactions, error: txError } = txRes;
+    const { data: rawTransactions, error: txError } = txRes;
     if (txError) throw txError;
 
-    if (!transactions || transactions.length === 0) {
+    if (!rawTransactions || rawTransactions.length === 0) {
       return NextResponse.json({ data: [] });
     }
 
+    // 암호화된 거래 복호화
+    const transactions = rawTransactions.map((row) => {
+      const r = row as unknown as { amount: string; price: string; quantity: string; transacted_at: string };
+      return decryptTransaction(r);
+    });
+
     // 범위: 최초 거래월 ~ 현재월
-    const earliestDate = transactions[0].transacted_at;
+    const earliestDate = transactions[0].transacted_at as string;
     const now = new Date();
     const today = now.toISOString().split('T')[0];
 
@@ -51,8 +65,8 @@ export async function GET(
       cursor.setMonth(cursor.getMonth() + 1);
     }
 
-    // 캐시된 월간 데이터 조회
-    const { data: cached } = await supabase
+    // 캐시된 월간 데이터 조회 (공유 데이터 → service client)
+    const { data: cached } = await serviceClient
       .from('stock_monthly_prices')
       .select('year_month, close_price, traded_at, fetched_at')
       .eq('symbol', symbol)
@@ -94,7 +108,7 @@ export async function GET(
             }));
 
           if (rows.length > 0) {
-            await supabase
+            await serviceClient
               .from('stock_monthly_prices')
               .upsert(rows, { onConflict: 'symbol,year_month' });
           }
@@ -119,13 +133,12 @@ export async function GET(
     const data: MonthlyPortfolioData[] = [];
 
     for (const ym of months) {
-      // 해당 월의 거래 누적
       const monthTxs = transactions.filter(
-        (t: { transacted_at: string }) => t.transacted_at.slice(0, 7) === ym
+        (t) => (t.transacted_at as string).slice(0, 7) === ym
       );
       for (const tx of monthTxs) {
-        cumulativeShares += Number(tx.quantity);
-        investedAmount += Number(tx.amount);
+        cumulativeShares += tx.quantity;
+        investedAmount += tx.amount;
       }
 
       const c = cachedMap.get(ym);
@@ -151,7 +164,7 @@ export async function GET(
 
     return NextResponse.json({ data }, {
       headers: {
-        'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=7200',
+        'Cache-Control': 'private, no-store',
       },
     });
   } catch (err: unknown) {

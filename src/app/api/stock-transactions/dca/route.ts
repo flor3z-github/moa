@@ -1,9 +1,16 @@
 import { NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/db';
+import { createAuthClient, createServiceClient } from '@/lib/db';
+import { getAuthUserId } from '@/lib/auth';
+import { encryptTransaction } from '@/lib/crypto';
 import { fetchMonthlyHistory } from '@/lib/stock/providers/yahoo';
 
 export async function POST(request: Request) {
   try {
+    const userId = await getAuthUserId();
+    if (!userId) {
+      return NextResponse.json({ error: '인증이 필요합니다.' }, { status: 401 });
+    }
+
     const body = await request.json();
     const { symbol, startMonth, endMonth, monthlyQuantity } = body;
 
@@ -22,7 +29,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'startMonth은 endMonth보다 이전이어야 합니다.' }, { status: 400 });
     }
 
-    const supabase = createServerClient();
+    const supabase = await createAuthClient();
+    const serviceClient = createServiceClient();
 
     // 종목 정보 조회 (market 필요)
     const { data: target, error: targetError } = await supabase
@@ -47,8 +55,8 @@ export async function POST(request: Request) {
       cursor.setMonth(cursor.getMonth() + 1);
     }
 
-    // 캐시된 월간 가격 조회
-    const { data: cached } = await supabase
+    // 캐시된 월간 가격 조회 (공유 데이터 → service client)
+    const { data: cached } = await serviceClient
       .from('stock_monthly_prices')
       .select('*')
       .eq('symbol', symbol)
@@ -81,7 +89,7 @@ export async function POST(request: Request) {
             fetched_at: new Date().toISOString(),
           }));
 
-          await supabase
+          await serviceClient
             .from('stock_monthly_prices')
             .upsert(rows, { onConflict: 'symbol,year_month' });
 
@@ -98,8 +106,8 @@ export async function POST(request: Request) {
       }
     }
 
-    // 거래 생성
-    const transactions: { symbol: string; type: string; amount: number; price: number; quantity: number; transacted_at: string; source: string }[] = [];
+    // 거래 생성 (암호화)
+    const transactions: { user_id: string; symbol: string; type: string; amount: string; price: string; quantity: string; transacted_at: string; source: string }[] = [];
     const skipped: string[] = [];
 
     for (const ym of months) {
@@ -115,12 +123,16 @@ export async function POST(request: Request) {
         continue;
       }
 
+      const amount = monthlyQuantity * price;
+      const encrypted = encryptTransaction({ amount, price, quantity: monthlyQuantity });
+
       transactions.push({
+        user_id: userId,
         symbol,
         type: 'buy',
-        amount: monthlyQuantity * price,
-        price,
-        quantity: monthlyQuantity,
+        amount: encrypted.amount,
+        price: encrypted.price,
+        quantity: encrypted.quantity,
         transacted_at: cached.traded_at,
         source: 'dca',
       });
