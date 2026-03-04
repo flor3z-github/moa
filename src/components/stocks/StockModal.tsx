@@ -22,7 +22,7 @@ interface SearchResult {
 
 interface StockModalProps {
   open: boolean;
-  onClose: () => void;
+  onClose: (changed: boolean) => void;
 }
 
 export default function StockModal({ open, onClose }: StockModalProps) {
@@ -41,6 +41,7 @@ export default function StockModal({ open, onClose }: StockModalProps) {
   const [selectedStock, setSelectedStock] = useState<SearchResult | null>(null);
   const [addError, setAddError] = useState('');
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null);
+  const changed = useRef(false);
 
   // Step wizard: 1 = 종목 선택, 2 = 투자 정보 입력
   const [step, setStep] = useState<1 | 2>(1);
@@ -94,6 +95,7 @@ export default function StockModal({ open, onClose }: StockModalProps) {
     setDeletingTx(id);
     try {
       await fetch(`/api/stock-transactions/${id}`, { method: 'DELETE' });
+      changed.current = true;
       if (expandedSymbol) fetchTransactions(expandedSymbol);
     } catch {
       // ignore
@@ -103,6 +105,7 @@ export default function StockModal({ open, onClose }: StockModalProps) {
   }
 
   function handleTxAdded() {
+    changed.current = true;
     if (expandedSymbol) fetchTransactions(expandedSymbol);
   }
 
@@ -128,10 +131,12 @@ export default function StockModal({ open, onClose }: StockModalProps) {
   }
 
   function handleClose() {
+    const hasChanged = changed.current;
     resetForm();
     setExpandedSymbol(null);
     setTransactions([]);
-    onClose();
+    changed.current = false;
+    onClose(hasChanged);
   }
 
   function handleSearch(query: string) {
@@ -177,6 +182,7 @@ export default function StockModal({ open, onClose }: StockModalProps) {
         setAddError(data.error || '종목 추가 실패');
         return;
       }
+      changed.current = true;
       setNewSymbol(selectedStock.symbol);
       setStep(2);
       fetchTargets();
@@ -188,6 +194,7 @@ export default function StockModal({ open, onClose }: StockModalProps) {
   }
 
   function handleNewTxAdded() {
+    changed.current = true;
     if (newSymbol) fetchNewTxs(newSymbol);
   }
 
@@ -200,6 +207,7 @@ export default function StockModal({ open, onClose }: StockModalProps) {
     if (!confirm('이 종목을 삭제하시겠습니까?')) return;
     try {
       await fetch(`/api/stock-targets/${id}`, { method: 'DELETE' });
+      changed.current = true;
       const target = targets.find((t) => t.id === id);
       if (target?.symbol === expandedSymbol) {
         setExpandedSymbol(null);
